@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Gestión y seguimiento de operaciones de Inversión Dual en criptomonedas">
+  <title>Inversión Dual · Crypto Dashboard</title>
+  <?!= include('Styles'); ?>
+</head>
+<body>
+  <div class="container">
+
+    <!-- Header -->
+    <div class="header fade-in">
+      <div class="header-badge">
+        <span class="dot"></span>
+        Live Dashboard
+      </div>
+      <h1>Inversión Dual</h1>
+      <p>Control y seguimiento de operaciones · BTC · ETH · USDT</p>
+    </div>
+
+    <!-- Alertas -->
+    <div id="alertSuccess" class="alert alert-success">
+      <span>✅</span>
+      <span id="alertSuccessMsg"></span>
+    </div>
+    <div id="alertError" class="alert alert-error">
+      <span>❌</span>
+      <span id="alertErrorMsg"></span>
+    </div>
+    <div id="alertInfo" class="alert alert-info">
+      <span>ℹ️</span>
+      <span id="alertInfoMsg"></span>
+    </div>
+
+    <!-- Formulario Nueva Operación -->
+    <div class="card fade-in">
+      <h2 class="card-title">
+        <span class="icon">➕</span>
+        Nueva Operación
+      </h2>
+
+      <form id="formOperacion">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="fechaInicio">Fecha y Hora de Inicio *</label>
+            <input type="datetime-local" id="fechaInicio" required>
+          </div>
+
+          <div class="form-group">
+            <label for="cex">CEX (Exchange) *</label>
+            <select id="cex" required>
+              <option value="">Seleccionar CEX...</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="monto">Monto Inicial *</label>
+            <input type="number" id="monto" step="any" placeholder="0.00" required>
+          </div>
+
+          <div class="form-group">
+            <label for="moneda">Moneda *</label>
+            <select id="moneda" required>
+              <option value="">Seleccionar...</option>
+              <option value="USDT">USDT</option>
+              <option value="ETH">ETH</option>
+              <option value="BTC">BTC</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="apr">% APR *</label>
+            <input type="number" id="apr" step="0.01" placeholder="0.00" required>
+          </div>
+
+          <div class="form-group">
+            <label for="tipoOperacion">Tipo de Operación *</label>
+            <select id="tipoOperacion" required>
+              <option value="">Seleccionar...</option>
+              <option value="Sell ETH high">Sell ETH high</option>
+              <option value="Buy ETH low">Buy ETH low</option>
+              <option value="Sell BTC high">Sell BTC high</option>
+              <option value="Buy BTC low">Buy BTC low</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="precioObjetivo">Precio Objetivo *</label>
+            <input type="number" id="precioObjetivo" step="any" placeholder="0.00" required>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" id="btnGuardar">
+            <span>💾</span> Guardar Operación
+          </button>
+          <button type="button" class="btn btn-outline" id="btnCancelar" style="display: none;" onclick="cancelarEdicion()">
+            <span>✖️</span> Cancelar
+          </button>
+        </div>
+      </form>
+
+      <!-- Loading formulario -->
+      <div id="formLoading" class="loading">
+        <div class="spinner"></div>
+        <p>Guardando operación...</p>
+      </div>
+    </div>
+
+    <!-- Operaciones en Curso -->
+    <div class="operaciones-section">
+      <div class="card fade-in">
+        <h2 class="section-title">
+          <span class="icon blue">🔄</span>
+          Operaciones en Curso
+          <span id="countActivas" class="count-badge">—</span>
+        </h2>
+        <div id="activasContainer">
+          <div class="loading show">
+            <div class="spinner"></div>
+            <p>Cargando operaciones...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Historial de Operaciones -->
+    <div class="operaciones-section">
+      <div class="card fade-in">
+        <h2 class="section-title">
+          <span class="icon green">📜</span>
+          Historial de Operaciones
+          <span id="countHistorial" class="count-badge">—</span>
+        </h2>
+        <div id="historialContainer">
+          <div class="loading show">
+            <div class="spinner"></div>
+            <p>Cargando historial...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Resumen Financiero -->
+    <div class="resumen-section">
+      <div class="card fade-in">
+        <h2 class="card-title">
+          <span class="icon">📈</span>
+          Resumen Financiero
+        </h2>
+        <div id="resumenContainer" class="resumen-grid">
+          <div class="loading show" style="grid-column: 1 / -1;">
+            <div class="spinner"></div>
+            <p>Cargando resumen...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /container -->
+
+  <!-- Modal Detalle -->
+  <div id="modalDetalle" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">📋 Detalle de Operación</h3>
+        <button class="modal-close" onclick="cerrarModal()" aria-label="Cerrar">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="detalleContent" class="detail-grid">
+          <!-- Contenido dinámico -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <?!= include('Scripts'); ?>
+</body>
+</html>
