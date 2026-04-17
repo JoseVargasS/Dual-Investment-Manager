@@ -1,24 +1,68 @@
 <script>
 // ============================================
-// VARIABLES GLOBALES
+// VARIABLES GLOBALES - Optimized
 // ============================================
 let operacionesData = { activas: [], completadas: [] };
+
+// Cache de elementos DOM frecuentes
+const DOM = {};
+const cacheDOM = () => {
+  DOM.formOperacion = document.getElementById('formOperacion');
+  DOM.modalDetalle = document.getElementById('modalDetalle');
+  DOM.activasContainer = document.getElementById('activasContainer');
+  DOM.historialContainer = document.getElementById('historialContainer');
+  DOM.resumenContainer = document.getElementById('resumenContainer');
+  DOM.alertSuccess = document.getElementById('alertSuccess');
+  DOM.alertError = document.getElementById('alertError');
+  DOM.alertInfo = document.getElementById('alertInfo');
+  DOM.alertSuccessMsg = document.getElementById('alertSuccessMsg');
+  DOM.alertErrorMsg = document.getElementById('alertErrorMsg');
+  DOM.alertInfoMsg = document.getElementById('alertInfoMsg');
+  DOM.fechaInicio = document.getElementById('fechaInicio');
+  DOM.cex = document.getElementById('cex');
+  DOM.monto = document.getElementById('monto');
+  DOM.moneda = document.getElementById('moneda');
+  DOM.apr = document.getElementById('apr');
+  DOM.tipoOperacion = document.getElementById('tipoOperacion');
+  DOM.precioObjetivo = document.getElementById('precioObjetivo');
+  DOM.countActivas = document.getElementById('countActivas');
+  DOM.countHistorial = document.getElementById('countHistorial');
+  DOM.formLoading = document.getElementById('formLoading');
+  DOM.btnGuardar = document.getElementById('btnGuardar');
+  DOM.btnCancelar = document.getElementById('btnCancelar');
+};
 
 // Lista de CEX disponibles
 const CEX_LIST = ['Binance', 'Bybit', 'OKX', 'Bitget'];
 
+// Debounce utility parainputs
+const debounce = (fn, delay = 300) => {
+  let timeout;
+  return (...args) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => fn.apply(this, args), delay);
+  };
+};
+
+// RAF utility para animaciones
+const raf = (fn) => requestAnimationFrame(fn);
+
 document.addEventListener('DOMContentLoaded', function() {
   console.log('DOM cargado, inicializando...');
+  cacheDOM();
 
   setFechaHoraActual();
   cargarCEXSelect();
   establecerOtrosPredeterminados();
 
-  document.getElementById('formOperacion').addEventListener('submit', guardarOperacion);
+  (DOM.formOperacion || document.getElementById('formOperacion')).addEventListener('submit', guardarOperacion);
 
-  document.getElementById('modalDetalle').addEventListener('click', function(e) {
-    if (e.target === this) cerrarModal();
-  });
+  const modalDetalle = DOM.modalDetalle || document.getElementById('modalDetalle');
+  if (modalDetalle) {
+    modalDetalle.addEventListener('click', function(e) {
+      if (e.target === this) cerrarModal();
+    });
+  }
 
   // Pequeño retardo para que google.script.run esté disponible
   setTimeout(function() {
@@ -26,10 +70,12 @@ document.addEventListener('DOMContentLoaded', function() {
     cargarResumen();
   }, 100);
 
-  // Delegación de eventos para tablas
+  // Delegación de eventos para tablas - Optimizada
   const setupDelegation = (id) => {
     const container = document.getElementById(id);
     if (!container) return;
+    
+    // Usar evento delegated
     container.addEventListener('click', function(e) {
       const target = e.target;
       const row = target.closest('.operacion-row');
@@ -51,7 +97,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (target.closest('select') || target.closest('input')) { e.stopPropagation(); return; }
 
       mostrarDetalle(fila, isHist);
-    });
+    }, { passive: true });
   };
 
   setupDelegation('activasContainer');
@@ -64,13 +110,11 @@ document.addEventListener('DOMContentLoaded', function() {
 function setFechaHoraActual() {
   try {
     const ahora = new Date();
-    // Forzar AM por defecto (4:00 AM)
     ahora.setHours(4, 0, 0, 0);
     
-    // Ajuste de zona horaria para el input datetime-local
     const offset = ahora.getTimezoneOffset() * 60000;
     const local = new Date(ahora.getTime() - offset);
-    const input = document.getElementById('fechaInicio');
+    const input = DOM.fechaInicio || document.getElementById('fechaInicio');
     if (input) input.value = local.toISOString().slice(0, 16);
   } catch (e) {
     console.error('Error al establecer fecha:', e);
@@ -79,16 +123,24 @@ function setFechaHoraActual() {
 
 function cargarCEXSelect() {
   try {
-    const select = document.getElementById('cex');
+    const select = DOM.cex || document.getElementById('cex');
     if (!select) return;
-    select.innerHTML = '<option value="">Seleccionar CEX...</option>';
+    
+    // Usar DocumentFragment para mejor rendimiento
+    const fragment = document.createDocumentFragment();
+    const defaultOpt = document.createElement('option');
+    defaultOpt.value = '';
+    defaultOpt.textContent = 'Seleccionar CEX...';
+    fragment.appendChild(defaultOpt);
+    
     CEX_LIST.forEach(cex => {
       const option = document.createElement('option');
       option.value = cex;
       option.textContent = cex;
-      select.appendChild(option);
+      fragment.appendChild(option);
     });
-    // Predeterminado OKX
+    
+    select.appendChild(fragment);
     select.value = 'OKX';
   } catch (e) {
     console.error('Error al cargar CEX:', e);
@@ -97,8 +149,8 @@ function cargarCEXSelect() {
 
 function establecerOtrosPredeterminados() {
   try {
-    const monedaSelect = document.getElementById('moneda');
-    const tipoSelect = document.getElementById('tipoOperacion');
+    const monedaSelect = DOM.moneda || document.getElementById('moneda');
+    const tipoSelect = DOM.tipoOperacion || document.getElementById('tipoOperacion');
     
     if (monedaSelect) monedaSelect.value = 'USDT';
     if (tipoSelect)   tipoSelect.value = 'Buy ETH low';
@@ -216,28 +268,26 @@ function guardarOperacion(e) {
 }
 
 // ============================================
-// CARGAR OPERACIONES
+// CARGAR OPERACIONES - Optimizado
 // ============================================
 function cargarOperaciones(silencioso = false) {
-  const activasCont = document.getElementById('activasContainer');
-  const historialCont = document.getElementById('historialContainer');
+  const activasCont = DOM.activasContainer || document.getElementById('activasContainer');
+  const historialCont = DOM.historialContainer || document.getElementById('historialContainer');
 
-  if (!silencioso) {
-    const skeletonTable = (cols) => `
-      <div class="table-container">
-        <table>
-          <tbody>
-            ${Array(4).fill(`
-              <tr>
-                <td colspan="${cols}"><div class="skeleton skeleton-text" style="height:45px; margin:5px 0; border-radius:8px;"></div></td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-    `;
-    if (activasCont) activasCont.innerHTML = skeletonTable(9);
-    if (historialCont) historialCont.innerHTML = skeletonTable(11);
+  if (!silencioso && activasCont && historialCont) {
+    const skeletonTable = (cols) => {
+      let rows = '';
+      for (let i = 0; i < 4; i++) {
+        let cells = '';
+        for (let j = 0; j < cols; j++) {
+          cells += '<td><div class="skeleton skeleton-row"></div></td>';
+        }
+        rows += '<tr>' + cells + '</tr>';
+      }
+      return '<div class="table-container"><table><tbody>' + rows + '</tbody></table></div>';
+    };
+    activasCont.innerHTML = skeletonTable(9);
+    historialCont.innerHTML = skeletonTable(11);
   }
 
   if (!isGASAvailable()) {
@@ -249,18 +299,21 @@ function cargarOperaciones(silencioso = false) {
     .withSuccessHandler(function(response) {
       if (response && response.success) {
         operacionesData = response;
-        renderizarActivas(response.activas || []);
-        renderizarHistorial(response.completadas || []);
         
-        // Establecer monto predeterminado desde el último ingreso del historial
+        // Usar RAF para renderizar
+        raf(() => {
+          renderizarActivas(response.activas || []);
+          renderizarHistorial(response.completadas || []);
+        });
+        
+        // Establecer monto predeterminado
         const completadas = response.completadas || [];
         if (completadas.length > 0) {
           const ultima = completadas[completadas.length - 1];
-          const montoInput = document.getElementById('monto');
+          const montoInput = DOM.monto || document.getElementById('monto');
           if (montoInput && (!montoInput.value || montoInput.value === '0')) {
-             // Reducir solo al número entero como se solicitó
              montoInput.value = ultima.final ? Math.floor(parseFloat(ultima.final)) : '';
-          }
+           }
         }
       } else {
         mostrarErrorCarga(extraerMensaje(response, 'Error al cargar operaciones'));
@@ -292,10 +345,10 @@ function mostrarErrorCarga(mensaje) {
 }
 
 // ============================================
-// RENDERIZAR TABLAS
+// RENDERIZAR TABLAS - Optimizado
 // ============================================
 function renderizarActivas(activas) {
-  const container = document.getElementById('activasContainer');
+  const container = DOM.activasContainer || document.getElementById('activasContainer');
   if (!container) return;
 
   actualizarContador('countActivas', activas.length);
@@ -313,20 +366,15 @@ function renderizarActivas(activas) {
 
   let totalSumaCalculada = 0;
 
+  // Usar template string optimizado
   let html = `
     <div class="table-container">
       <table>
         <thead>
           <tr>
-            <th>Fecha Inicio</th>
-            <th>CEX</th>
-            <th>Monto</th>
-            <th>% APR</th>
-            <th>Tipo operación</th>
-            <th>Precio Obj.</th>
-            <th>Interés</th>
-            <th>Total calc.</th>
-            <th>Acciones</th>
+            <th>Fecha Inicio</th><th>CEX</th><th>Monto</th><th>% APR</th>
+            <th>Tipo operación</th><th>Precio Obj.</th><th>Interés</th>
+            <th>Total calc.</th><th>Acciones</th>
           </tr>
         </thead>
         <tbody>
@@ -346,7 +394,6 @@ function renderizarActivas(activas) {
       ? '$' + totalNum.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
       : '-';
 
-    // Formatear duración: si M > 0 usa dias, si no usa horas de O
     const m = Math.round(parseFloat(String(op.tiempoCex || '0').replace(/[^\d.-]/g, '')) || 0);
     const o = Math.round(parseFloat(String(op.duracion  || '0').replace(/[^\d.-]/g, '')) || 0);
     
@@ -412,7 +459,7 @@ function renderizarActivas(activas) {
 }
 
 function renderizarHistorial(completadas) {
-  const container = document.getElementById('historialContainer');
+  const container = DOM.historialContainer || document.getElementById('historialContainer');
   if (!container) return;
 
   actualizarContador('countHistorial', completadas.length);
@@ -428,7 +475,6 @@ function renderizarHistorial(completadas) {
     return;
   }
 
-  // Mostrar del último al primero
   const ordenadas = [...completadas].reverse();
 
   let html = `
@@ -436,16 +482,9 @@ function renderizarHistorial(completadas) {
       <table>
         <thead>
           <tr>
-            <th>Fecha Inicio</th>
-            <th>CEX</th>
-            <th>Monto</th>
-            <th>% APR</th>
-            <th>Tipo op.</th>
-            <th>Precio Obj.</th>
-            <th>Interés</th>
-            <th>Total calc.</th>
-            <th>Final Obtenido</th>
-            <th>APR Acum.</th>
+            <th>Fecha Inicio</th><th>CEX</th><th>Monto</th><th>% APR</th>
+            <th>Tipo op.</th><th>Precio Obj.</th><th>Interés</th>
+            <th>Total calc.</th><th>Final Obtenido</th><th>APR Acum.</th>
             <th>APR Ef. Diario</th>
           </tr>
         </thead>
@@ -1218,10 +1257,13 @@ function hideAppTooltip() {
 function actualizarContador(id, count) {
   const el = document.getElementById(id);
   if (!el) return;
+  
   if (id === 'countHistorial') {
     el.textContent = count + (count === 1 ? ' completada' : ' completadas');
+  } else if (id === 'countActivas') {
+    el.textContent = count === 0 ? '0' : (count + (count === 1 ? ' activa' : ' activas'));
   } else {
-    el.textContent = count + (count === 1 ? ' activa' : count === 0 ? '0' : ' activas');
+    el.textContent = count;
   }
 }
 
@@ -1289,24 +1331,27 @@ function getBadgeClass(tipoOperacion) {
 }
 
 function showAlert(type, message) {
-  let alertId = 'alertError';
-  let msgId   = 'alertErrorMsg';
-
+  // Usar cache DOM
+  let alertEl, msgEl;
+  
   if (type === 'success') {
-    alertId = 'alertSuccess';
-    msgId   = 'alertSuccessMsg';
+    alertEl = DOM.alertSuccess;
+    msgEl = DOM.alertSuccessMsg;
   } else if (type === 'info') {
-    alertId = 'alertInfo';
-    msgId   = 'alertInfoMsg';
+    alertEl = DOM.alertInfo;
+    msgEl = DOM.alertInfoMsg;
+  } else {
+    alertEl = DOM.alertError;
+    msgEl = DOM.alertErrorMsg;
   }
 
-  const alertEl = document.getElementById(alertId);
-  const msgEl   = document.getElementById(msgId);
+  if (!alertEl) alertEl = document.getElementById(type === 'success' ? 'alertSuccess' : type === 'info' ? 'alertInfo' : 'alertError');
+  if (!msgEl) msgEl = document.getElementById(type === 'success' ? 'alertSuccessMsg' : type === 'info' ? 'alertInfoMsg' : 'alertErrorMsg');
 
   if (msgEl)   msgEl.textContent = message;
   if (alertEl) alertEl.classList.add('show');
 
-  setTimeout(() => { if (alertEl) alertEl.classList.remove('show'); }, 6000);
+  setTimeout(() => { if (alertEl) alertEl.classList.remove('show'); }, 5000);
 }
 
 function showLoading(elementId, show) {
