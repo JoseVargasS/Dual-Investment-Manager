@@ -126,21 +126,21 @@ function cargarCEXSelect() {
     const select = DOM.cex || document.getElementById('cex');
     if (!select) return;
     
-    // Usar DocumentFragment para mejor rendimiento
-    const fragment = document.createDocumentFragment();
+    // Clear existing options to avoid duplicates
+    select.innerHTML = '';
+    
     const defaultOpt = document.createElement('option');
     defaultOpt.value = '';
     defaultOpt.textContent = 'Seleccionar CEX...';
-    fragment.appendChild(defaultOpt);
+    select.appendChild(defaultOpt);
     
     CEX_LIST.forEach(cex => {
       const option = document.createElement('option');
       option.value = cex;
       option.textContent = cex;
-      fragment.appendChild(option);
+      select.appendChild(option);
     });
     
-    select.appendChild(fragment);
     select.value = 'OKX';
   } catch (e) {
     console.error('Error al cargar CEX:', e);

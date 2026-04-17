@@ -31,9 +31,9 @@ Dual Investment Manager/
 
 ### 2. Configurar Pestañas
 
-La app usa **2 pestañas**:
+La app usa **1 pestaña principal**:
 
-#### Pestaña Principal: `PRESTAMO`
+#### Pestaña: `PRESTAMO`
 
 | Fila | Contenido |
 |------|----------|
@@ -63,15 +63,6 @@ La app usa **2 pestañas**:
 | 21 | U | MONEDA FINAL | Moneda de cierre |
 | 22 | V | APR ACUMULADO | APR acumulado |
 | 23 | W | APR EFECTIVO DIARIO | APR efectivo diario |
-
-##### Encabezados Recomendados (Fila 18):
-
-```
-| A | B | C | D | E | F | G | H | I | J | K | L | M | N | O | P | Q | R | S | T | U | V | W |
-|   |   |   |   | FECHA INICIO | FECHA FIN | CEX | MONTO | MONEDA | %APR | TIPO | PRECIO OBJ. | TIEMPO CEX | DURACION |  |  | FINAL | INTERES | TOTAL |  | MONEDA FINAL | APR ACUM | APR EFECTIVO |
-```
-
-**Nota**: Solo necesitas las columnas E a W. Las columnas A-D pueden estar vacías o usarse para notas.
 
 ### 3. Configurar Google Apps Script
 
@@ -144,26 +135,35 @@ Para obtener el ID de tu hoja:
 
 ## Estilos (Glassmorphism UI)
 
-El UI usa efectos glassmorphism modernos:
+El UI usa efectos **glassmorphism** modernos con transparencia y patrones:
 
-- **Fondo**: Oscuro (#060810) con orbes flotantes
-- **Cards**: Efecto glass con backdrop-filter blur
-- **Bordes**: Sutiles con glow cyan/verde
+- **Fondo**: Negro (#050505) con grid sutil y orbes flotantes
+- **Cards**: Efecto glass muy transparente con blur
+- **Bordes**: Sutiles con glow verde (#00ff94)
 - **Tipografía**: Inter (UI) + JetBrains Mono (números)
-- **Responsive**: Optimizado para móvil
+- **Responsive**: Optimizado para móvil con fuentes grandes
 
 ### Variables CSS Principales
 
 ```css
---primary: #00d4ff      /* Cyan - Principal */
---secondary: #00ff94    /* Verde - Éxito */
---danger: #ff4d6d       /* Rojo - Peligro */
---warning: #ffd166       /* Oro - Advertencia */
---dark: #060810         /* Fondo oscuro */
---dark-2: #0a0e17    /* Fondo secundario */
---text: #f1f5f9       /* Texto claro */
---text-muted: #94a3b8    /* Texto muted */
+--primary: #00ff94       /* Verde - Principal */
+--secondary: #00d4ff    /* Cyan */
+--danger: #ff4d6d       /* Rojo */
+--warning: #ffd166      /* Oro */
+--dark: #050505         /* Fondo negro */
+--dark-2: #080808      /* Fondo secundario */
+--text: #eeeeee        /* Texto claro */
+--text-muted: #777777   /* Texto muted */
 ```
+
+### Características Visuales
+
+- Fondo con patrón grid de 40x40px
+- Textura noise sutil
+- Cards con `backdrop-filter: blur(20px)`
+- Bordes con highlight interno
+- Animaciones suaves
+- Skeleton loaders durante carga
 
 ---
 
@@ -185,12 +185,11 @@ El UI usa efectos glassmorphism modernos:
 
 1. Abre la consola del navegador (F12 → Console)
 2. Revisa los errores de JavaScript
-3. Verifica la URL de despliegueSea correcta
+3. Verifica la URL de despliegue sea correcta
 
-### Mostrar código en lugar de la app
+### Duplicados en select CEX
 
-- Asegúrate de usar la **URL de la app web**, no la de edición
-- La URL correcta termina en `/exec` o `/dev`
+- El código ya limpia el select antes de agregar opciones para evitar duplicados
 
 ---
 
@@ -206,9 +205,10 @@ El UI usa efectos glassmorphism modernos:
 ### Frontend (HTML/JS/CSS)
 
 - UI Vanilla (sin frameworks)
-- Glassmorphism
+- Glassmorphism verde/negro
 - Eventos delegados para mejor rendimiento
 - Skeleton loaders durante carga
+- Optimizado para móvil
 
 ---
 
