@@ -1,335 +1,473 @@
 <script>
-// ============================================
-// VARIABLES GLOBALES - Optimized
-// ============================================
-let operacionesData = { activas: [], completadas: [] };
+  // ============================================
+  // VARIABLES GLOBALES - Optimized
+  // ============================================
+  let operacionesData = { activas: [], completadas: [] };
 
-// Cache de elementos DOM frecuentes
-const DOM = {};
-const cacheDOM = () => {
-  DOM.formOperacion = document.getElementById('formOperacion');
-  DOM.modalDetalle = document.getElementById('modalDetalle');
-  DOM.activasContainer = document.getElementById('activasContainer');
-  DOM.historialContainer = document.getElementById('historialContainer');
-  DOM.resumenContainer = document.getElementById('resumenContainer');
-  DOM.alertSuccess = document.getElementById('alertSuccess');
-  DOM.alertError = document.getElementById('alertError');
-  DOM.alertInfo = document.getElementById('alertInfo');
-  DOM.alertSuccessMsg = document.getElementById('alertSuccessMsg');
-  DOM.alertErrorMsg = document.getElementById('alertErrorMsg');
-  DOM.alertInfoMsg = document.getElementById('alertInfoMsg');
-  DOM.fechaInicio = document.getElementById('fechaInicio');
-  DOM.cex = document.getElementById('cex');
-  DOM.monto = document.getElementById('monto');
-  DOM.moneda = document.getElementById('moneda');
-  DOM.apr = document.getElementById('apr');
-  DOM.tipoOperacion = document.getElementById('tipoOperacion');
-  DOM.precioObjetivo = document.getElementById('precioObjetivo');
-  DOM.countActivas = document.getElementById('countActivas');
-  DOM.countHistorial = document.getElementById('countHistorial');
-  DOM.formLoading = document.getElementById('formLoading');
-  DOM.btnGuardar = document.getElementById('btnGuardar');
-  DOM.btnCancelar = document.getElementById('btnCancelar');
-};
-
-// Lista de CEX disponibles
-const CEX_LIST = ['Binance', 'Bybit', 'OKX', 'Bitget'];
-
-// Debounce utility parainputs
-const debounce = (fn, delay = 300) => {
-  let timeout;
-  return (...args) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => fn.apply(this, args), delay);
+  // Cache de elementos DOM frecuentes
+  const DOM = {};
+  const cacheDOM = () => {
+    DOM.formOperacion = document.getElementById("formOperacion");
+    DOM.modalDetalle = document.getElementById("modalDetalle");
+    DOM.activasContainer = document.getElementById("activasContainer");
+    DOM.historialContainer = document.getElementById("historialContainer");
+    DOM.resumenContainer = document.getElementById("resumenContainer");
+    DOM.alertSuccess = document.getElementById("alertSuccess");
+    DOM.alertError = document.getElementById("alertError");
+    DOM.alertInfo = document.getElementById("alertInfo");
+    DOM.alertSuccessMsg = document.getElementById("alertSuccessMsg");
+    DOM.alertErrorMsg = document.getElementById("alertErrorMsg");
+    DOM.alertInfoMsg = document.getElementById("alertInfoMsg");
+    DOM.fechaInicio = document.getElementById("fechaInicio");
+    DOM.cex = document.getElementById("cex");
+    DOM.monto = document.getElementById("monto");
+    DOM.moneda = document.getElementById("moneda");
+    DOM.apr = document.getElementById("apr");
+    DOM.tipoOperacion = document.getElementById("tipoOperacion");
+    DOM.precioObjetivo = document.getElementById("precioObjetivo");
+    DOM.countActivas = document.getElementById("countActivas");
+    DOM.countHistorial = document.getElementById("countHistorial");
+    DOM.formLoading = document.getElementById("formLoading");
+    DOM.btnGuardar = document.getElementById("btnGuardar");
+    DOM.btnCancelar = document.getElementById("btnCancelar");
   };
-};
 
-// RAF utility para animaciones
-const raf = (fn) => requestAnimationFrame(fn);
+  // Lista de CEX disponibles
+  const CEX_LIST = ["Binance", "Bybit", "OKX", "Bitget"];
 
-document.addEventListener('DOMContentLoaded', function() {
-  console.log('DOM cargado, inicializando...');
-  cacheDOM();
+  const CEX_LOGOS = {
+    Binance:
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/1/12/Binance_logo.svg/960px-Binance_logo.svg.png",
+    Bybit:
+      "https://www.thecryptogo.com/wp-content/uploads/2025/01/bybit-logo-dark-300x90.webp",
+    OKX: "https://cexfinder.com/wp-content/uploads/2024/02/OKX-250x141.png",
+    Bitget: "https://cryptologos.cc/logos/bitget-token-new-bgb-logo.png?v=042",
+  };
 
-  setFechaHoraActual();
-  cargarCEXSelect();
-  establecerOtrosPredeterminados();
+  // Debounce utility parainputs
+  const debounce = (fn, delay = 300) => {
+    let timeout;
+    return (...args) => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => fn.apply(this, args), delay);
+    };
+  };
 
-  (DOM.formOperacion || document.getElementById('formOperacion')).addEventListener('submit', guardarOperacion);
+  // RAF utility para animaciones
+  const raf = (fn) => requestAnimationFrame(fn);
 
-  const modalDetalle = DOM.modalDetalle || document.getElementById('modalDetalle');
-  if (modalDetalle) {
-    modalDetalle.addEventListener('click', function(e) {
-      if (e.target === this) cerrarModal();
+  document.addEventListener("DOMContentLoaded", function () {
+    console.log("DOM cargado, inicializando...");
+    cacheDOM();
+
+    setFechaHoraActual();
+    cargarCEXSelect();
+    establecerOtrosPredeterminados();
+
+    (
+      DOM.formOperacion || document.getElementById("formOperacion")
+    ).addEventListener("submit", guardarOperacion);
+
+    const modalDetalle =
+      DOM.modalDetalle || document.getElementById("modalDetalle");
+    if (modalDetalle) {
+      modalDetalle.addEventListener("click", function (e) {
+        if (e.target === this) cerrarModal();
+      });
+    }
+
+    // Cerrar selector de CEX al hacer click fuera
+    document.addEventListener("click", function (e) {
+      const container = document.getElementById("cexCustomContainer");
+      if (container && !container.contains(e.target)) {
+        document.getElementById("cexOptions")?.classList.remove("show");
+        document.getElementById("cexTrigger")?.classList.remove("active");
+      }
+    });
+
+    // Pequeño retardo para que google.script.run esté disponible
+    setTimeout(function () {
+      cargarOperaciones();
+      cargarResumen();
+    }, 100);
+
+    // Delegación de eventos para tablas - Optimizada
+    const setupDelegation = (id) => {
+      const container = document.getElementById(id);
+      if (!container) return;
+
+      // Usar evento delegated
+      container.addEventListener(
+        "click",
+        function (e) {
+          const target = e.target;
+          const row = target.closest(".operacion-row");
+          if (!row) return;
+
+          const fila = parseInt(row.dataset.fila || "0");
+          const isHist = row.dataset.historial === "true";
+
+          if (target.closest(".editable")) return;
+
+          const btn = target.closest(".btn-icon");
+          if (btn) {
+            e.stopPropagation();
+            if (btn.classList.contains("btn-edit"))
+              cargarEdicionOperacion(fila);
+            if (btn.classList.contains("btn-delete")) eliminarOperacionUI(fila);
+            return;
+          }
+
+          if (target.closest("select") || target.closest("input")) {
+            e.stopPropagation();
+            return;
+          }
+
+          mostrarDetalle(fila, isHist);
+        },
+        { passive: true },
+      );
+    };
+
+    setupDelegation("activasContainer");
+    setupDelegation("historialContainer");
+  });
+
+  // ============================================
+  // CONFIGURACIÓN
+  // ============================================
+  function setFechaHoraActual() {
+    try {
+      const ahora = new Date();
+      ahora.setHours(4, 0, 0, 0);
+
+      const offset = ahora.getTimezoneOffset() * 60000;
+      const local = new Date(ahora.getTime() - offset);
+      const input = DOM.fechaInicio || document.getElementById("fechaInicio");
+      if (input) input.value = local.toISOString().slice(0, 16);
+    } catch (e) {
+      console.error("Error al establecer fecha:", e);
+    }
+  }
+
+  function cargarCEXSelect() {
+    try {
+      const select = DOM.cex || document.getElementById("cex");
+      const trigger = document.getElementById("cexTrigger");
+      const optionsContainer = document.getElementById("cexOptions");
+      const selectedText = document.getElementById("cexSelectedText");
+
+      if (!select || !trigger || !optionsContainer) return;
+
+      // Clear existing options
+      select.innerHTML = "";
+      optionsContainer.innerHTML = "";
+
+      const defaultOpt = document.createElement("option");
+      defaultOpt.value = "";
+      defaultOpt.textContent = "Seleccionar CEX...";
+      select.appendChild(defaultOpt);
+
+      CEX_LIST.forEach((cex) => {
+        // Opción en select oculto
+        const option = document.createElement("option");
+        option.value = cex;
+        option.textContent = cex;
+        select.appendChild(option);
+
+        // Opción en UI personalizada
+        const customOpt = document.createElement("div");
+        customOpt.className = "custom-option";
+        customOpt.dataset.value = cex;
+        customOpt.innerHTML = `
+        <img src="${CEX_LOGOS[cex]}" class="cex-logo" alt="${cex}" onerror="this.style.display='none'">
+        <span>${cex}</span>
+      `;
+
+        customOpt.onclick = () => {
+          seleccionarCEX(cex);
+          optionsContainer.classList.remove("show");
+          trigger.classList.remove("active");
+        };
+
+        optionsContainer.appendChild(customOpt);
+      });
+
+      trigger.onclick = (e) => {
+        e.stopPropagation();
+        optionsContainer.classList.toggle("show");
+        trigger.classList.toggle("active");
+      };
+
+      // Valor inicial
+      seleccionarCEX("OKX");
+    } catch (e) {
+      console.error("Error al cargar CEX:", e);
+    }
+  }
+
+  function seleccionarCEX(valor) {
+    const select = document.getElementById("cex");
+    const selectedText = document.getElementById("cexSelectedText");
+    const options = document.querySelectorAll(".custom-option");
+
+    if (select) select.value = valor;
+
+    if (selectedText) {
+      if (valor && CEX_LOGOS[valor]) {
+        selectedText.innerHTML = `
+        <div style="display:flex; align-items:center; gap:10px;">
+          <img src="${CEX_LOGOS[valor]}" class="cex-logo" alt="${valor}" onerror="this.style.display='none'">
+          <span>${valor}</span>
+        </div>
+      `;
+      } else {
+        selectedText.textContent = "Seleccionar CEX...";
+      }
+    }
+
+    // Marcar como seleccionada en la UI
+    options.forEach((opt) => {
+      opt.classList.toggle("selected", opt.dataset.value === valor);
     });
   }
 
-  // Pequeño retardo para que google.script.run esté disponible
-  setTimeout(function() {
-    cargarOperaciones();
-    cargarResumen();
-  }, 100);
+  function establecerOtrosPredeterminados() {
+    try {
+      const monedaSelect = DOM.moneda || document.getElementById("moneda");
+      const tipoSelect =
+        DOM.tipoOperacion || document.getElementById("tipoOperacion");
 
-  // Delegación de eventos para tablas - Optimizada
-  const setupDelegation = (id) => {
-    const container = document.getElementById(id);
-    if (!container) return;
-    
-    // Usar evento delegated
-    container.addEventListener('click', function(e) {
-      const target = e.target;
-      const row = target.closest('.operacion-row');
-      if (!row) return;
+      if (monedaSelect) monedaSelect.value = "USDT";
+      if (tipoSelect) tipoSelect.value = "Buy ETH low";
+    } catch (e) {
+      console.error("Error al establecer otros predeterminados:", e);
+    }
+  }
 
-      const fila = parseInt(row.dataset.fila || '0');
-      const isHist = row.dataset.historial === 'true';
+  // ============================================
+  // GUARDAR OPERACIÓN
+  // ============================================
+  function guardarOperacion(e) {
+    e.preventDefault();
+    console.log("Guardando operación...");
 
-      if (target.closest('.editable')) return;
+    showLoading("formLoading", true);
 
-      const btn = target.closest('.btn-icon');
-      if (btn) {
-        e.stopPropagation();
-        if (btn.classList.contains('btn-edit')) cargarEdicionOperacion(fila);
-        if (btn.classList.contains('btn-delete')) eliminarOperacionUI(fila);
+    try {
+      const fechaInput = document.getElementById("fechaInicio").value;
+      if (!fechaInput) {
+        showAlert("error", "Debes seleccionar una fecha de inicio");
+        showLoading("formLoading", false);
         return;
       }
 
-      if (target.closest('select') || target.closest('input')) { e.stopPropagation(); return; }
+      const [datePart, timePart] = fechaInput.split("T");
+      const hour = timePart.split(":")[0];
+      const fechaLocalExacta = datePart + "T" + hour + ":00";
 
-      mostrarDetalle(fila, isHist);
-    }, { passive: true });
-  };
+      const cex = document.getElementById("cex").value;
+      const monto = parseFloat(document.getElementById("monto").value);
+      const moneda = document.getElementById("moneda").value;
+      const apr = parseFloat(document.getElementById("apr").value);
+      const tipoOperacion = document.getElementById("tipoOperacion").value;
+      const precioObjetivo = parseFloat(
+        document.getElementById("precioObjetivo").value,
+      );
 
-  setupDelegation('activasContainer');
-  setupDelegation('historialContainer');
-});
+      if (!cex) {
+        showAlert("error", "Selecciona un CEX");
+        showLoading("formLoading", false);
+        return;
+      }
+      if (!monto || isNaN(monto) || monto <= 0) {
+        showAlert("error", "Ingresa un monto válido");
+        showLoading("formLoading", false);
+        return;
+      }
+      if (!moneda) {
+        showAlert("error", "Selecciona una moneda");
+        showLoading("formLoading", false);
+        return;
+      }
+      if (!apr || isNaN(apr) || apr <= 0) {
+        showAlert("error", "Ingresa un APR válido");
+        showLoading("formLoading", false);
+        return;
+      }
+      if (!tipoOperacion) {
+        showAlert("error", "Selecciona un tipo de operación");
+        showLoading("formLoading", false);
+        return;
+      }
+      if (!precioObjetivo || isNaN(precioObjetivo) || precioObjetivo <= 0) {
+        showAlert("error", "Ingresa un precio objetivo válido");
+        showLoading("formLoading", false);
+        return;
+      }
 
-// ============================================
-// CONFIGURACIÓN
-// ============================================
-function setFechaHoraActual() {
-  try {
-    const ahora = new Date();
-    ahora.setHours(4, 0, 0, 0);
-    
-    const offset = ahora.getTimezoneOffset() * 60000;
-    const local = new Date(ahora.getTime() - offset);
-    const input = DOM.fechaInicio || document.getElementById('fechaInicio');
-    if (input) input.value = local.toISOString().slice(0, 16);
-  } catch (e) {
-    console.error('Error al establecer fecha:', e);
-  }
-}
+      const datos = {
+        fechaInicio: fechaLocalExacta,
+        cex,
+        monto,
+        moneda,
+        apr,
+        tipoOperacion,
+        precioObjetivo,
+      };
 
-function cargarCEXSelect() {
-  try {
-    const select = DOM.cex || document.getElementById('cex');
-    if (!select) return;
-    
-    // Clear existing options to avoid duplicates
-    select.innerHTML = '';
-    
-    const defaultOpt = document.createElement('option');
-    defaultOpt.value = '';
-    defaultOpt.textContent = 'Seleccionar CEX...';
-    select.appendChild(defaultOpt);
-    
-    CEX_LIST.forEach(cex => {
-      const option = document.createElement('option');
-      option.value = cex;
-      option.textContent = cex;
-      select.appendChild(option);
-    });
-    
-    select.value = 'OKX';
-  } catch (e) {
-    console.error('Error al cargar CEX:', e);
-  }
-}
+      console.log("Datos a enviar:", datos);
 
-function establecerOtrosPredeterminados() {
-  try {
-    const monedaSelect = DOM.moneda || document.getElementById('moneda');
-    const tipoSelect = DOM.tipoOperacion || document.getElementById('tipoOperacion');
-    
-    if (monedaSelect) monedaSelect.value = 'USDT';
-    if (tipoSelect)   tipoSelect.value = 'Buy ETH low';
-  } catch (e) {
-    console.error('Error al establecer otros predeterminados:', e);
-  }
-}
+      if (!isGASAvailable()) {
+        showAlert("error", "No se pudo conectar con Google Apps Script");
+        showLoading("formLoading", false);
+        return;
+      }
 
-// ============================================
-// GUARDAR OPERACIÓN
-// ============================================
-function guardarOperacion(e) {
-  e.preventDefault();
-  console.log('Guardando operación...');
+      if (!window.editandoFila) {
+        crearFilaPendiente(datos);
+        document.getElementById("formOperacion").reset();
+        setFechaHoraActual();
+      }
 
-  showLoading('formLoading', true);
+      const successHandler = function (response) {
+        showLoading("formLoading", false);
+        console.log("Respuesta servidor:", response);
+        if (response && response.success) {
+          showAlert(
+            "success",
+            window.editandoFila
+              ? "Operación actualizada correctamente"
+              : "Operación guardada correctamente",
+          );
 
-  try {
-    const fechaInput = document.getElementById('fechaInicio').value;
-    if (!fechaInput) {
-      showAlert('error', 'Debes seleccionar una fecha de inicio');
-      showLoading('formLoading', false);
-      return;
+          if (window.editandoFila) {
+            const submitBtn = document.querySelector(
+              '#formOperacion button[type="submit"]',
+            );
+            submitBtn.textContent = "Agregar Operación";
+            submitBtn.classList.remove("btn-warning");
+
+            const btnCancel = document.getElementById("btnCancelar");
+            if (btnCancel) btnCancel.style.display = "none";
+
+            window.editandoFila = null;
+            document.getElementById("formOperacion").reset();
+            setFechaHoraActual();
+          }
+
+          cargarOperaciones(true);
+          cargarResumen();
+        } else {
+          showAlert("error", extraerMensaje(response, "Error en el servidor"));
+          cargarOperaciones(true); // Recargar por si acaso para quitar la fila pendiente
+        }
+      };
+
+      const failureHandler = function (error) {
+        showLoading("formLoading", false);
+        console.error("Error de servidor:", error);
+        showAlert(
+          "error",
+          "Error: " + extraerMensaje(error, "Error desconocido"),
+        );
+        cargarOperaciones(true); // Recargar
+      };
+
+      if (window.editandoFila) {
+        datos.fila = window.editandoFila;
+        google.script.run
+          .withSuccessHandler(successHandler)
+          .withFailureHandler(failureHandler)
+          .actualizarOperacionFila(datos);
+      } else {
+        google.script.run
+          .withSuccessHandler(successHandler)
+          .withFailureHandler(failureHandler)
+          .agregarOperacion(datos);
+      }
+    } catch (error) {
+      console.error("Error en guardarOperacion:", error);
+      showLoading("formLoading", false);
+      showAlert("error", "Error: " + (error.message || "Error desconocido"));
     }
+  }
 
-    const [datePart, timePart] = fechaInput.split('T');
-    const hour = timePart.split(':')[0];
-    const fechaLocalExacta = datePart + 'T' + hour + ':00';
+  // ============================================
+  // CARGAR OPERACIONES - Optimizado
+  // ============================================
+  function cargarOperaciones(silencioso = false) {
+    const activasCont =
+      DOM.activasContainer || document.getElementById("activasContainer");
+    const historialCont =
+      DOM.historialContainer || document.getElementById("historialContainer");
 
-    const cex = document.getElementById('cex').value;
-    const monto = parseFloat(document.getElementById('monto').value);
-    const moneda = document.getElementById('moneda').value;
-    const apr = parseFloat(document.getElementById('apr').value);
-    const tipoOperacion = document.getElementById('tipoOperacion').value;
-    const precioObjetivo = parseFloat(document.getElementById('precioObjetivo').value);
-
-    if (!cex)                                         { showAlert('error', 'Selecciona un CEX');               showLoading('formLoading', false); return; }
-    if (!monto || isNaN(monto) || monto <= 0)         { showAlert('error', 'Ingresa un monto válido');         showLoading('formLoading', false); return; }
-    if (!moneda)                                      { showAlert('error', 'Selecciona una moneda');           showLoading('formLoading', false); return; }
-    if (!apr || isNaN(apr) || apr <= 0)               { showAlert('error', 'Ingresa un APR válido');           showLoading('formLoading', false); return; }
-    if (!tipoOperacion)                               { showAlert('error', 'Selecciona un tipo de operación'); showLoading('formLoading', false); return; }
-    if (!precioObjetivo || isNaN(precioObjetivo) || precioObjetivo <= 0) { showAlert('error', 'Ingresa un precio objetivo válido'); showLoading('formLoading', false); return; }
-
-    const datos = {
-      fechaInicio: fechaLocalExacta,
-      cex, monto, moneda, apr, tipoOperacion, precioObjetivo
-    };
-
-    console.log('Datos a enviar:', datos);
+    if (!silencioso && activasCont && historialCont) {
+      const skeletonTable = (cols) => {
+        let rows = "";
+        for (let i = 0; i < 4; i++) {
+          let cells = "";
+          for (let j = 0; j < cols; j++) {
+            cells += '<td><div class="skeleton skeleton-row"></div></td>';
+          }
+          rows += "<tr>" + cells + "</tr>";
+        }
+        return (
+          '<div class="table-container"><table><tbody>' +
+          rows +
+          "</tbody></table></div>"
+        );
+      };
+      activasCont.innerHTML = skeletonTable(9);
+      historialCont.innerHTML = skeletonTable(11);
+    }
 
     if (!isGASAvailable()) {
-      showAlert('error', 'No se pudo conectar con Google Apps Script');
-      showLoading('formLoading', false);
+      mostrarErrorCarga("No se pudo conectar con Google Apps Script.");
       return;
     }
 
-    if (!window.editandoFila) {
-      crearFilaPendiente(datos);
-      document.getElementById('formOperacion').reset();
-      setFechaHoraActual();
-    }
+    google.script.run
+      .withSuccessHandler(function (response) {
+        if (response && response.success) {
+          operacionesData = response;
 
-    const successHandler = function(response) {
-      showLoading('formLoading', false);
-      console.log('Respuesta servidor:', response);
-      if (response && response.success) {
-        showAlert('success', window.editandoFila ? 'Operación actualizada correctamente' : 'Operación guardada correctamente');
-        
-        if (window.editandoFila) {
-           const submitBtn = document.querySelector('#formOperacion button[type="submit"]');
-           submitBtn.textContent = 'Agregar Operación';
-           submitBtn.classList.remove('btn-warning');
-           
-           const btnCancel = document.getElementById('btnCancelar');
-           if (btnCancel) btnCancel.style.display = 'none';
-           
-           window.editandoFila = null;
-           document.getElementById('formOperacion').reset();
-           setFechaHoraActual();
+          // Usar RAF para renderizar
+          raf(() => {
+            renderizarActivas(response.activas || []);
+            renderizarHistorial(response.completadas || []);
+          });
+
+          // Establecer monto predeterminado
+          const completadas = response.completadas || [];
+          if (completadas.length > 0) {
+            const ultima = completadas[completadas.length - 1];
+            const montoInput = DOM.monto || document.getElementById("monto");
+            if (montoInput && (!montoInput.value || montoInput.value === "0")) {
+              montoInput.value = ultima.final
+                ? Math.floor(parseFloat(ultima.final))
+                : "";
+            }
+          }
+        } else {
+          mostrarErrorCarga(
+            extraerMensaje(response, "Error al cargar operaciones"),
+          );
         }
-        
-        cargarOperaciones(true); 
-        cargarResumen();
-      } else {
-        showAlert('error', extraerMensaje(response, 'Error en el servidor'));
-        cargarOperaciones(true); // Recargar por si acaso para quitar la fila pendiente
-      }
-    };
-
-    const failureHandler = function(error) {
-      showLoading('formLoading', false);
-      console.error('Error de servidor:', error);
-      showAlert('error', 'Error: ' + extraerMensaje(error, 'Error desconocido'));
-      cargarOperaciones(true); // Recargar
-    };
-
-    if (window.editandoFila) {
-      datos.fila = window.editandoFila;
-      google.script.run
-        .withSuccessHandler(successHandler)
-        .withFailureHandler(failureHandler)
-        .actualizarOperacionFila(datos);
-    } else {
-      google.script.run
-        .withSuccessHandler(successHandler)
-        .withFailureHandler(failureHandler)
-        .agregarOperacion(datos);
-    }
-
-  } catch (error) {
-    console.error('Error en guardarOperacion:', error);
-    showLoading('formLoading', false);
-    showAlert('error', 'Error: ' + (error.message || 'Error desconocido'));
-  }
-}
-
-// ============================================
-// CARGAR OPERACIONES - Optimizado
-// ============================================
-function cargarOperaciones(silencioso = false) {
-  const activasCont = DOM.activasContainer || document.getElementById('activasContainer');
-  const historialCont = DOM.historialContainer || document.getElementById('historialContainer');
-
-  if (!silencioso && activasCont && historialCont) {
-    const skeletonTable = (cols) => {
-      let rows = '';
-      for (let i = 0; i < 4; i++) {
-        let cells = '';
-        for (let j = 0; j < cols; j++) {
-          cells += '<td><div class="skeleton skeleton-row"></div></td>';
-        }
-        rows += '<tr>' + cells + '</tr>';
-      }
-      return '<div class="table-container"><table><tbody>' + rows + '</tbody></table></div>';
-    };
-    activasCont.innerHTML = skeletonTable(9);
-    historialCont.innerHTML = skeletonTable(11);
+      })
+      .withFailureHandler(function (error) {
+        mostrarErrorCarga(
+          extraerMensaje(error, "Error al conectar con el servidor"),
+        );
+      })
+      .obtenerOperaciones();
   }
 
-  if (!isGASAvailable()) {
-    mostrarErrorCarga('No se pudo conectar con Google Apps Script.');
-    return;
-  }
+  function mostrarErrorCarga(mensaje) {
+    const activasContainer = document.getElementById("activasContainer");
+    const historialContainer = document.getElementById("historialContainer");
 
-  google.script.run
-    .withSuccessHandler(function(response) {
-      if (response && response.success) {
-        operacionesData = response;
-        
-        // Usar RAF para renderizar
-        raf(() => {
-          renderizarActivas(response.activas || []);
-          renderizarHistorial(response.completadas || []);
-        });
-        
-        // Establecer monto predeterminado
-        const completadas = response.completadas || [];
-        if (completadas.length > 0) {
-          const ultima = completadas[completadas.length - 1];
-          const montoInput = DOM.monto || document.getElementById('monto');
-          if (montoInput && (!montoInput.value || montoInput.value === '0')) {
-             montoInput.value = ultima.final ? Math.floor(parseFloat(ultima.final)) : '';
-           }
-        }
-      } else {
-        mostrarErrorCarga(extraerMensaje(response, 'Error al cargar operaciones'));
-      }
-    })
-    .withFailureHandler(function(error) {
-      mostrarErrorCarga(extraerMensaje(error, 'Error al conectar con el servidor'));
-    })
-    .obtenerOperaciones();
-}
-
-function mostrarErrorCarga(mensaje) {
-  const activasContainer   = document.getElementById('activasContainer');
-  const historialContainer = document.getElementById('historialContainer');
-
-  const errorHtml = `
+    const errorHtml = `
     <div class="error-state">
       <span class="error-state-icon">⚠️</span>
       <h3>Error al cargar</h3>
@@ -340,34 +478,35 @@ function mostrarErrorCarga(mensaje) {
     </div>
   `;
 
-  if (activasContainer)   activasContainer.innerHTML   = errorHtml;
-  if (historialContainer) historialContainer.innerHTML = errorHtml;
-}
+    if (activasContainer) activasContainer.innerHTML = errorHtml;
+    if (historialContainer) historialContainer.innerHTML = errorHtml;
+  }
 
-// ============================================
-// RENDERIZAR TABLAS - Optimizado
-// ============================================
-function renderizarActivas(activas) {
-  const container = DOM.activasContainer || document.getElementById('activasContainer');
-  if (!container) return;
+  // ============================================
+  // RENDERIZAR TABLAS - Optimizado
+  // ============================================
+  function renderizarActivas(activas) {
+    const container =
+      DOM.activasContainer || document.getElementById("activasContainer");
+    if (!container) return;
 
-  actualizarContador('countActivas', activas.length);
+    actualizarContador("countActivas", activas.length);
 
-  if (!activas || activas.length === 0) {
-    container.innerHTML = `
+    if (!activas || activas.length === 0) {
+      container.innerHTML = `
       <div class="empty-state">
         <span class="empty-state-icon">🛰️</span>
         <h3>No hay operaciones activas</h3>
         <p>Completa el formulario para iniciar una nueva inversión</p>
       </div>
     `;
-    return;
-  }
+      return;
+    }
 
-  let totalSumaCalculada = 0;
+    let totalSumaCalculada = 0;
 
-  // Usar template string optimizado
-  let html = `
+    // Usar template string optimizado
+    let html = `
     <div class="table-container">
       <table>
         <thead>
@@ -380,38 +519,54 @@ function renderizarActivas(activas) {
         <tbody>
   `;
 
-  activas.forEach(op => {
-    const fechaInicio     = formatearFecha(op.fechaInicio);
-    const montoFormateado = formatearMonto(op.monto, op.moneda);
-    const badgeClass      = getBadgeClass(op.tipoOperacion);
-    const moneda          = op.moneda ? String(op.moneda) : 'USDT';
-    const monedaKey       = moneda.toLowerCase().replace(/[^a-z]/g, '');
-    const interesStr      = formatearInteres(op.interes, moneda);
-    
-    const totalNum        = parseFloat(op.total) || 0;
-    totalSumaCalculada   += totalNum;
-    const totalStr        = totalNum > 0
-      ? '$' + totalNum.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-      : '-';
+    activas.forEach((op) => {
+      const fechaInicio = formatearFecha(op.fechaInicio);
+      const montoFormateado = formatearMonto(op.monto, op.moneda);
+      const badgeClass = getBadgeClass(op.tipoOperacion);
+      const moneda = op.moneda ? String(op.moneda) : "USDT";
+      const monedaKey = moneda.toLowerCase().replace(/[^a-z]/g, "");
+      const interesStr = formatearInteres(op.interes, moneda);
 
-    const m = Math.round(parseFloat(String(op.tiempoCex || '0').replace(/[^\d.-]/g, '')) || 0);
-    const o = Math.round(parseFloat(String(op.duracion  || '0').replace(/[^\d.-]/g, '')) || 0);
-    
-    let duracionLimpia = '';
-    if (m > 0) {
-      duracionLimpia = m + ' día';
-    } else if (o > 0) {
-      duracionLimpia = o + ' horas';
-    }
-    const duracionBadge   = duracionLimpia ? `<div class="badge-duration">${duracionLimpia}</div>` : '';
+      const totalNum = parseFloat(op.total) || 0;
+      totalSumaCalculada += totalNum;
+      const totalStr =
+        totalNum > 0
+          ? "$" +
+            totalNum.toLocaleString("es-ES", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })
+          : "-";
 
-    html += `
+      const m = Math.round(
+        parseFloat(String(op.tiempoCex || "0").replace(/[^\d.-]/g, "")) || 0,
+      );
+      const o = Math.round(
+        parseFloat(String(op.duracion || "0").replace(/[^\d.-]/g, "")) || 0,
+      );
+
+      let duracionLimpia = "";
+      if (m > 0) {
+        duracionLimpia = m + " día";
+      } else if (o > 0) {
+        duracionLimpia = o + " horas";
+      }
+      const duracionBadge = duracionLimpia
+        ? `<div class="badge-duration">${duracionLimpia}</div>`
+        : "";
+
+      html += `
       <tr class="operacion-row" data-fila="${op.fila}" data-historial="false">
         <td class="td-nowrap">
           <div style="margin-bottom:2px;">${fechaInicio}</div>
           ${duracionBadge}
         </td>
-        <td><strong>${op.cex || '-'}</strong></td>
+        <td>
+          <div class="cex-badge">
+            <img src="${CEX_LOGOS[op.cex] || ""}" class="cex-logo" alt="${op.cex}" onerror="this.style.display='none'">
+            <span>${op.cex || "-"}</span>
+          </div>
+        </td>
         <td class="td-nowrap">
           <div style="display:flex; align-items:center; gap:8px;">
             <span>${montoFormateado}</span>
@@ -420,7 +575,7 @@ function renderizarActivas(activas) {
         </td>
         <td><strong>${op.apr}%</strong></td>
         <td class="td-nowrap">
-          <span class="badge ${badgeClass}">${op.tipoOperacion || '-'}</span>
+          <span class="badge ${badgeClass}">${op.tipoOperacion || "-"}</span>
         </td>
         <td>$${formatearNumero(op.precioObjetivo)}</td>
         <td class="success"><strong>${interesStr}</strong></td>
@@ -443,41 +598,42 @@ function renderizarActivas(activas) {
         </td>
       </tr>
     `;
-  });
+    });
 
-  html += `
+    html += `
       </tbody>
       <tfoot>
         <tr class="table-footer-summary">
           <td colspan="7" class="summary-label">Total en curso:</td>
-          <td colspan="2" class="summary-value">$${totalSumaCalculada.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+          <td colspan="2" class="summary-value">$${totalSumaCalculada.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
         </tr>
       </tfoot>
     </table>
   </div>`;
-  container.innerHTML = html;
-}
+    container.innerHTML = html;
+  }
 
-function renderizarHistorial(completadas) {
-  const container = DOM.historialContainer || document.getElementById('historialContainer');
-  if (!container) return;
+  function renderizarHistorial(completadas) {
+    const container =
+      DOM.historialContainer || document.getElementById("historialContainer");
+    if (!container) return;
 
-  actualizarContador('countHistorial', completadas.length);
+    actualizarContador("countHistorial", completadas.length);
 
-  if (!completadas || completadas.length === 0) {
-    container.innerHTML = `
+    if (!completadas || completadas.length === 0) {
+      container.innerHTML = `
       <div class="empty-state">
         <span class="empty-state-icon">📃</span>
         <h3>No hay operaciones completadas</h3>
         <p>Las operaciones finalizadas aparecerán aquí</p>
       </div>
     `;
-    return;
-  }
+      return;
+    }
 
-  const ordenadas = [...completadas].reverse();
+    const ordenadas = [...completadas].reverse();
 
-  let html = `
+    let html = `
     <div class="table-container historial-table-container">
       <table>
         <thead>
@@ -491,41 +647,63 @@ function renderizarHistorial(completadas) {
         <tbody>
   `;
 
-  ordenadas.forEach(op => {
-    const fechaInicio     = formatearFecha(op.fechaInicio);
-    const montoFormateado = formatearMonto(op.monto, op.moneda);
-    const badgeClass      = getBadgeClass(op.tipoOperacion);
-    const moneda          = op.moneda      ? String(op.moneda)      : 'USDT';
-    const monedaFinal     = op.monedaFinal ? String(op.monedaFinal) : '-';
-    const monedaKey       = moneda.toLowerCase().replace(/[^a-z]/g, '');
-    const monedaFinalKey  = monedaFinal.toLowerCase().replace(/[^a-z]/g, '');
-    const interesStr      = formatearInteres(op.interes, moneda);
-    
-    // Total: siempre USDT 2 decimales
-    const totalStr        = op.total !== null && op.total !== undefined && op.total !== '' && !isNaN(Number(op.total))
-      ? '$' + parseFloat(op.total).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-      : '-';
-    const finalStr        = formatearFinal(op.final, (monedaFinal !== '-' ? monedaFinal : moneda));
+    ordenadas.forEach((op) => {
+      const fechaInicio = formatearFecha(op.fechaInicio);
+      const montoFormateado = formatearMonto(op.monto, op.moneda);
+      const badgeClass = getBadgeClass(op.tipoOperacion);
+      const moneda = op.moneda ? String(op.moneda) : "USDT";
+      const monedaFinal = op.monedaFinal ? String(op.monedaFinal) : "-";
+      const monedaKey = moneda.toLowerCase().replace(/[^a-z]/g, "");
+      const monedaFinalKey = monedaFinal.toLowerCase().replace(/[^a-z]/g, "");
+      const interesStr = formatearInteres(op.interes, moneda);
 
-    // Formatear duración: si M > 0 usa dias, si no usa horas de O
-    const m_h = Math.round(parseFloat(String(op.tiempoCex || '0').replace(/[^\d.-]/g, '')) || 0);
-    const o_h = Math.round(parseFloat(String(op.duracion  || '0').replace(/[^\d.-]/g, '')) || 0);
-    
-    let duracionLimpia = '';
-    if (m_h > 0) {
-      duracionLimpia = m_h + ' día';
-    } else if (o_h > 0) {
-      duracionLimpia = o_h + ' horas';
-    }
-    const duracionBadge   = duracionLimpia ? `<div class="badge-duration">${duracionLimpia}</div>` : '';
+      // Total: siempre USDT 2 decimales
+      const totalStr =
+        op.total !== null &&
+        op.total !== undefined &&
+        op.total !== "" &&
+        !isNaN(Number(op.total))
+          ? "$" +
+            parseFloat(op.total).toLocaleString("es-ES", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })
+          : "-";
+      const finalStr = formatearFinal(
+        op.final,
+        monedaFinal !== "-" ? monedaFinal : moneda,
+      );
 
-    html += `
+      // Formatear duración: si M > 0 usa dias, si no usa horas de O
+      const m_h = Math.round(
+        parseFloat(String(op.tiempoCex || "0").replace(/[^\d.-]/g, "")) || 0,
+      );
+      const o_h = Math.round(
+        parseFloat(String(op.duracion || "0").replace(/[^\d.-]/g, "")) || 0,
+      );
+
+      let duracionLimpia = "";
+      if (m_h > 0) {
+        duracionLimpia = m_h + " día";
+      } else if (o_h > 0) {
+        duracionLimpia = o_h + " horas";
+      }
+      const duracionBadge = duracionLimpia
+        ? `<div class="badge-duration">${duracionLimpia}</div>`
+        : "";
+
+      html += `
       <tr class="operacion-row" data-fila="${op.fila}" data-historial="true">
         <td class="td-nowrap">
           <div style="margin-bottom:2px;">${fechaInicio}</div>
           ${duracionBadge}
         </td>
-        <td><strong>${op.cex || '-'}</strong></td>
+        <td>
+          <div class="cex-badge">
+            <img src="${CEX_LOGOS[op.cex] || ""}" class="cex-logo" alt="${op.cex}" onerror="this.style.display='none'">
+            <span>${op.cex || "-"}</span>
+          </div>
+        </td>
         <td class="td-nowrap">
           <div style="display:flex; align-items:center; gap:8px;">
             <span>${montoFormateado}</span>
@@ -534,7 +712,7 @@ function renderizarHistorial(completadas) {
         </td>
         <td><strong>${op.apr}%</strong></td>
         <td class="td-nowrap">
-          <span class="badge ${badgeClass}">${op.tipoOperacion || '-'}</span>
+          <span class="badge ${badgeClass}">${op.tipoOperacion || "-"}</span>
         </td>
         <td>$${formatearNumero(op.precioObjetivo)}</td>
         <td class="success"><strong>${interesStr}</strong></td>
@@ -544,165 +722,205 @@ function renderizarHistorial(completadas) {
         <td>${op.aprEfectivo}%</td>
       </tr>
     `;
-  });
+    });
 
-  html += '</tbody></table></div>';
-  container.innerHTML = html;
-}
+    html += "</tbody></table></div>";
+    container.innerHTML = html;
+  }
 
-function completarOperacion(fila, monedaFinal, selectElement) {
-  if (!monedaFinal) return;
+  function completarOperacion(fila, monedaFinal, selectElement) {
+    if (!monedaFinal) return;
 
-  mostrarConfirmacion(`¿Confirmar que la operación finalizó en ${monedaFinal}?`, function() {
-    if (!isGASAvailable()) {
-      showAlert('error', 'No se pudo conectar con Google Apps Script');
-      selectElement.value = '';
-      return;
+    mostrarConfirmacion(
+      `¿Confirmar que la operación finalizó en ${monedaFinal}?`,
+      function () {
+        if (!isGASAvailable()) {
+          showAlert("error", "No se pudo conectar con Google Apps Script");
+          selectElement.value = "";
+          return;
+        }
+
+        google.script.run
+          .withSuccessHandler(function (response) {
+            if (response && response.success) {
+              showAlert("success", "Operación completada correctamente");
+              cargarOperaciones(true);
+            } else {
+              showAlert(
+                "error",
+                extraerMensaje(response, "Error al completar"),
+              );
+              selectElement.value = "";
+            }
+          })
+          .withFailureHandler(function (error) {
+            showAlert(
+              "error",
+              "Error: " + extraerMensaje(error, "Error desconocido"),
+            );
+            selectElement.value = "";
+          })
+          .completarOperacion(fila, monedaFinal);
+      },
+      function () {
+        selectElement.value = "";
+      },
+    );
+  }
+
+  function eliminarOperacionUI(fila) {
+    mostrarConfirmacion(
+      "¿Estás seguro de que deseas eliminar esta operación de forma permanente?",
+      function () {
+        if (!isGASAvailable()) {
+          showAlert("error", "No hay conexión");
+          return;
+        }
+
+        // Feedback visual inmediato (Efecto de cristal roto)
+        const opRow = document.querySelector(
+          `.operacion-row[data-fila='${fila}']`,
+        );
+        if (opRow) {
+          shatterElement(opRow);
+          // Lo ocultamos inmediatamente para que no se quede "congelado"
+          opRow.style.display = "none";
+          opRow.classList.add("row-deleting");
+        }
+
+        google.script.run
+          .withSuccessHandler(function (response) {
+            if (response && response.success) {
+              showAlert("success", "Operación eliminada");
+              // Actualización silenciosa en segundo plano
+              cargarOperaciones(true);
+              cargarResumen(true);
+            } else {
+              if (opRow) {
+                opRow.style.display = "";
+                opRow.classList.remove("row-deleting");
+              }
+              showAlert("error", extraerMensaje(response, "Error al eliminar"));
+            }
+          })
+          .withFailureHandler(function (error) {
+            if (opRow) opRow.style.display = "";
+            showAlert("error", extraerMensaje(error, "Error de conexión"));
+            cargarOperaciones(true);
+          })
+          .eliminarOperacionFila(fila);
+      },
+    );
+  }
+
+  function cargarEdicionOperacion(fila) {
+    const op =
+      (operacionesData.activas || []).find((o) => o.fila === fila) ||
+      (operacionesData.completadas || []).find((o) => o.fila === fila);
+    if (!op) return;
+
+    if (op.fechaInicio) {
+      // El servidor envía "yyyy-MM-dd HH:mm:ss". datetime-local requiere "yyyy-MM-ddTHH:mm"
+      const rawLocal = op.fechaInicio.replace(" ", "T").substring(0, 16);
+      document.getElementById("fechaInicio").value = rawLocal;
     }
 
-    google.script.run
-      .withSuccessHandler(function(response) {
-        if (response && response.success) {
-          showAlert('success', 'Operación completada correctamente');
-          cargarOperaciones(true);
-        } else {
-          showAlert('error', extraerMensaje(response, 'Error al completar'));
-          selectElement.value = '';
-        }
-      })
-      .withFailureHandler(function(error) {
-        showAlert('error', 'Error: ' + extraerMensaje(error, 'Error desconocido'));
-        selectElement.value = '';
-      })
-      .completarOperacion(fila, monedaFinal);
-  }, function() {
-    selectElement.value = '';
-  });
-}
+    seleccionarCEX(op.cex || "");
+    document.getElementById("monto").value = op.monto || "";
+    document.getElementById("moneda").value = op.moneda || "";
 
-function eliminarOperacionUI(fila) {
-  mostrarConfirmacion('¿Estás seguro de que deseas eliminar esta operación de forma permanente?', function() {
-    if (!isGASAvailable()) { showAlert('error', 'No hay conexión'); return; }
-    
-    // Feedback visual inmediato (Efecto de cristal roto)
-    const opRow = document.querySelector(`.operacion-row[data-fila='${fila}']`);
-    if (opRow) {
-      shatterElement(opRow);
-      // Lo ocultamos inmediatamente para que no se quede "congelado"
-      opRow.style.display = 'none';
-      opRow.classList.add('row-deleting');
+    document.getElementById("apr").value = op.apr || "";
+    document.getElementById("tipoOperacion").value = op.tipoOperacion || "";
+    document.getElementById("precioObjetivo").value = op.precioObjetivo || "";
+
+    window.editandoFila = fila;
+
+    const submitBtn = document.querySelector(
+      '#formOperacion button[type="submit"]',
+    );
+    if (submitBtn) {
+      submitBtn.textContent = "Actualizar Operación";
+      submitBtn.classList.add("btn-warning");
+    }
+    showAlert(
+      "info",
+      '✏️ Modo edición activado. Modifica los campos y pulsa "Actualizar".',
+      5000,
+    );
+
+    const btnCancel = document.getElementById("btnCancelar");
+    if (btnCancel) btnCancel.style.display = "inline-block";
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function cancelarEdicion() {
+    window.editandoFila = null;
+    document.getElementById("formOperacion").reset();
+    seleccionarCEX("OKX"); // Reset custom select
+    setFechaHoraActual();
+
+    const submitBtn = document.querySelector(
+      '#formOperacion button[type="submit"]',
+    );
+    if (submitBtn) {
+      submitBtn.textContent = "Guardar Operación";
+      submitBtn.classList.remove("btn-warning");
     }
 
-    google.script.run
-      .withSuccessHandler(function(response) {
-        if (response && response.success) {
-          showAlert('success', 'Operación eliminada');
-          // Actualización silenciosa en segundo plano
-          cargarOperaciones(true);
-          cargarResumen(true);
-        } else {
-          if (opRow) {
-            opRow.style.display = '';
-            opRow.classList.remove('row-deleting');
-          }
-          showAlert('error', extraerMensaje(response, 'Error al eliminar'));
-        }
-      })
-      .withFailureHandler(function(error) {
-        if (opRow) opRow.style.display = '';
-        showAlert('error', extraerMensaje(error, 'Error de conexión'));
-        cargarOperaciones(true);
-      })
-      .eliminarOperacionFila(fila);
-  });
-}
+    const btnCancel = document.getElementById("btnCancelar");
+    if (btnCancel) btnCancel.style.display = "none";
 
-function cargarEdicionOperacion(fila) {
-  const op = (operacionesData.activas || []).find(o => o.fila === fila) || (operacionesData.completadas || []).find(o => o.fila === fila);
-  if (!op) return;
-  
-  if (op.fechaInicio) {
-    // El servidor envía "yyyy-MM-dd HH:mm:ss". datetime-local requiere "yyyy-MM-ddTHH:mm"
-    const rawLocal = op.fechaInicio.replace(' ', 'T').substring(0, 16);
-    document.getElementById('fechaInicio').value = rawLocal;
+    // Ocultar alerta de info
+    const alertInfo = document.getElementById("alertInfo");
+    if (alertInfo) alertInfo.classList.remove("show");
   }
-  
-  document.getElementById('cex').value = op.cex || '';
-  document.getElementById('monto').value = op.monto || '';
-  document.getElementById('moneda').value = op.moneda || '';
-  
-  document.getElementById('apr').value = op.apr || ''; 
-  document.getElementById('tipoOperacion').value = op.tipoOperacion || '';
-  document.getElementById('precioObjetivo').value = op.precioObjetivo || '';
-  
-  window.editandoFila = fila;
-  
-  const submitBtn = document.querySelector('#formOperacion button[type="submit"]');
-  if (submitBtn) {
-    submitBtn.textContent = 'Actualizar Operación';
-    submitBtn.classList.add('btn-warning');
-  }
-  showAlert('info', '✏️ Modo edición activado. Modifica los campos y pulsa "Actualizar".', 5000);
-  
-  const btnCancel = document.getElementById('btnCancelar');
-  if (btnCancel) btnCancel.style.display = 'inline-block';
-  
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
 
-function cancelarEdicion() {
-  window.editandoFila = null;
-  document.getElementById('formOperacion').reset();
-  setFechaHoraActual();
-  
-  const submitBtn = document.querySelector('#formOperacion button[type="submit"]');
-  if (submitBtn) {
-    submitBtn.textContent = 'Guardar Operación';
-    submitBtn.classList.remove('btn-warning');
-  }
-  
-  const btnCancel = document.getElementById('btnCancelar');
-  if (btnCancel) btnCancel.style.display = 'none';
-  
-  // Ocultar alerta de info
-  const alertInfo = document.getElementById('alertInfo');
-  if (alertInfo) alertInfo.classList.remove('show');
-}
+  // ============================================
+  // MODAL
+  // ============================================
+  function mostrarDetalle(fila, esHistorial) {
+    const operaciones = esHistorial
+      ? operacionesData.completadas
+      : operacionesData.activas;
+    if (!operaciones) return;
 
-// ============================================
-// MODAL
-// ============================================
-function mostrarDetalle(fila, esHistorial) {
-  const operaciones = esHistorial ? operacionesData.completadas : operacionesData.activas;
-  if (!operaciones) return;
+    const op = operaciones.find((o) => o.fila === fila);
+    if (!op) return;
 
-  const op = operaciones.find(o => o.fila === fila);
-  if (!op) return;
+    const badgeClass = getBadgeClass(op.tipoOperacion);
+    const fechaInicio = formatearFecha(op.fechaInicio);
+    const fechaFin = op.fechaFin ? formatearFecha(op.fechaFin) : "-";
+    const moneda = op.moneda || "USDT";
+    const monedaFinal = op.monedaFinal || "-";
 
-  const badgeClass  = getBadgeClass(op.tipoOperacion);
-  const fechaInicio = formatearFecha(op.fechaInicio);
-  const fechaFin    = op.fechaFin ? formatearFecha(op.fechaFin) : '-';
-  const moneda      = op.moneda || 'USDT';
-  const monedaFinal = op.monedaFinal || '-';
+    // Asegurar que moneda y monedaFinal siempre sean strings
+    const monedaKey = moneda.toLowerCase().replace(/[^a-z]/g, "");
+    const monedaFinalKey = monedaFinal.toLowerCase().replace(/[^a-z]/g, "");
 
-  // Asegurar que moneda y monedaFinal siempre sean strings
-  const monedaKey      = moneda.toLowerCase().replace(/[^a-z]/g, '');
-  const monedaFinalKey = monedaFinal.toLowerCase().replace(/[^a-z]/g, '');
-
-  let html = `
+    let html = `
     <div class="detail-item">
       <div class="detail-label">Fecha de Inicio</div>
       <div class="detail-value">${fechaInicio}</div>
     </div>
-    ${esHistorial ? `
+    ${
+      esHistorial
+        ? `
     <div class="detail-item">
       <div class="detail-label">Fecha de Fin</div>
       <div class="detail-value">${fechaFin}</div>
     </div>
-    ` : ''}
+    `
+        : ""
+    }
     <div class="detail-item">
       <div class="detail-label">CEX</div>
-      <div class="detail-value highlight">${op.cex || '-'}</div>
+      <div class="detail-value highlight">
+        <div class="cex-badge" style="background:transparent; border:none; padding:0;">
+          <img src="${CEX_LOGOS[op.cex] || ""}" class="cex-logo" alt="${op.cex}" onerror="this.style.display='none'">
+          <span>${op.cex || "-"}</span>
+        </div>
+      </div>
     </div>
     <div class="detail-item">
       <div class="detail-label">Monto Inicial</div>
@@ -716,14 +934,24 @@ function mostrarDetalle(fila, esHistorial) {
     </div>
     <div class="detail-item">
       <div class="detail-label">Tipo de Operación</div>
-      <div class="detail-value"><span class="badge ${badgeClass}">${op.tipoOperacion || '-'}</span></div>
+      <div class="detail-value"><span class="badge ${badgeClass}">${op.tipoOperacion || "-"}</span></div>
     </div>
-    ${!esHistorial ? (() => {
-      const interesStr = formatearInteres(op.interes, moneda);
-      const totalStr = op.total !== null && op.total !== undefined && op.total !== '' && !isNaN(Number(op.total))
-        ? '$' + parseFloat(op.total).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-        : '-';
-      return `
+    ${
+      !esHistorial
+        ? (() => {
+            const interesStr = formatearInteres(op.interes, moneda);
+            const totalStr =
+              op.total !== null &&
+              op.total !== undefined &&
+              op.total !== "" &&
+              !isNaN(Number(op.total))
+                ? "$" +
+                  parseFloat(op.total).toLocaleString("es-ES", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })
+                : "-";
+            return `
       <div class="detail-item">
         <div class="detail-label">Interés a Ganar</div>
         <div class="detail-value success">${interesStr}</div>
@@ -733,21 +961,34 @@ function mostrarDetalle(fila, esHistorial) {
         <div class="detail-value highlight">${totalStr}</div>
       </div>
       `;
-    })() : ''}
+          })()
+        : ""
+    }
     <div class="detail-item">
       <div class="detail-label">Precio Objetivo</div>
       <div class="detail-value">$${formatearNumero(op.precioObjetivo)}</div>
     </div>
   `;
 
-  if (esHistorial) {
-    const monedaFinalKey = monedaFinal.toLowerCase().replace(/[^a-z]/g, '');
-    const interesStr = formatearInteres(op.interes, moneda);
-    const totalStr = op.total !== null && op.total !== undefined && op.total !== '' && !isNaN(Number(op.total))
-      ? '$' + parseFloat(op.total).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-      : '-';
-    const finalStr = formatearFinal(op.final, monedaFinal !== '-' ? monedaFinal : moneda);
-    html += `
+    if (esHistorial) {
+      const monedaFinalKey = monedaFinal.toLowerCase().replace(/[^a-z]/g, "");
+      const interesStr = formatearInteres(op.interes, moneda);
+      const totalStr =
+        op.total !== null &&
+        op.total !== undefined &&
+        op.total !== "" &&
+        !isNaN(Number(op.total))
+          ? "$" +
+            parseFloat(op.total).toLocaleString("es-ES", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })
+          : "-";
+      const finalStr = formatearFinal(
+        op.final,
+        monedaFinal !== "-" ? monedaFinal : moneda,
+      );
+      html += `
       <div class="detail-item">
         <div class="detail-label">Interés Generado</div>
         <div class="detail-value success">${interesStr}</div>
@@ -771,27 +1012,27 @@ function mostrarDetalle(fila, esHistorial) {
         <div class="detail-value highlight">${op.aprEfectivo}%</div>
       </div>
     `;
+    }
+
+    const detalleContent = document.getElementById("detalleContent");
+    const modalDetalle = document.getElementById("modalDetalle");
+
+    if (detalleContent) detalleContent.innerHTML = html;
+    if (modalDetalle) modalDetalle.classList.add("active");
   }
 
-  const detalleContent = document.getElementById('detalleContent');
-  const modalDetalle   = document.getElementById('modalDetalle');
+  function cerrarModal() {
+    const modal = document.getElementById("modalDetalle");
+    if (modal) modal.classList.remove("active");
+  }
 
-  if (detalleContent) detalleContent.innerHTML = html;
-  if (modalDetalle)   modalDetalle.classList.add('active');
-}
-
-function cerrarModal() {
-  const modal = document.getElementById('modalDetalle');
-  if (modal) modal.classList.remove('active');
-}
-
-// ============================================
-// RESUMEN
-// ============================================
-function cargarResumen(isSilent) {
-  const container = document.getElementById('resumenContainer');
-  if (container && !isSilent) {
-    container.innerHTML = `
+  // ============================================
+  // RESUMEN
+  // ============================================
+  function cargarResumen(isSilent) {
+    const container = document.getElementById("resumenContainer");
+    if (container && !isSilent) {
+      container.innerHTML = `
       <div class="card skeleton-card" style="grid-column: 1/-1; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.02);">
         <div class="skeleton" style="width: 80%; height: 20px; margin-bottom: 20px;"></div>
         <div class="skeleton" style="width: 60%; height: 30px;"></div>
@@ -805,34 +1046,38 @@ function cargarResumen(isSilent) {
         <div class="skeleton" style="width: 80%; height: 20px;"></div>
       </div>
     `;
+    }
+
+    if (!isGASAvailable()) {
+      console.error("google.script.run no está disponible para resumen");
+      mostrarErrorResumen("No se pudo conectar con Google Apps Script");
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function (response) {
+        console.log("Resumen recibido:", response);
+        if (response && response.success) {
+          renderizarResumen(response);
+        } else {
+          mostrarErrorResumen(
+            extraerMensaje(response, "Error al cargar resumen"),
+          );
+        }
+      })
+      .withFailureHandler(function (error) {
+        console.error("Error withFailureHandler cargarResumen:", error);
+        mostrarErrorResumen(
+          extraerMensaje(error, "Error al conectar con el servidor"),
+        );
+      })
+      .obtenerResumen();
   }
 
-  if (!isGASAvailable()) {
-    console.error('google.script.run no está disponible para resumen');
-    mostrarErrorResumen('No se pudo conectar con Google Apps Script');
-    return;
-  }
-
-  google.script.run
-    .withSuccessHandler(function(response) {
-      console.log('Resumen recibido:', response);
-      if (response && response.success) {
-        renderizarResumen(response);
-      } else {
-        mostrarErrorResumen(extraerMensaje(response, 'Error al cargar resumen'));
-      }
-    })
-    .withFailureHandler(function(error) {
-      console.error('Error withFailureHandler cargarResumen:', error);
-      mostrarErrorResumen(extraerMensaje(error, 'Error al conectar con el servidor'));
-    })
-    .obtenerResumen();
-}
-
-function mostrarErrorResumen(mensaje) {
-  const container = document.getElementById('resumenContainer');
-  if (container) {
-    container.innerHTML = `
+  function mostrarErrorResumen(mensaje) {
+    const container = document.getElementById("resumenContainer");
+    if (container) {
+      container.innerHTML = `
       <div class="error-state" style="grid-column:1/-1;">
         <span class="error-state-icon">📊</span>
         <h3>⚠️ Error al cargar resumen</h3>
@@ -842,226 +1087,271 @@ function mostrarErrorResumen(mensaje) {
         </button>
       </div>
     `;
+    }
   }
-}
 
-function renderizarResumen(data) {
-  const container = document.getElementById('resumenContainer');
-  if (!container) return;
+  function renderizarResumen(data) {
+    const container = document.getElementById("resumenContainer");
+    if (!container) return;
 
-  // Los valores de getDisplayValues() ya vienen formateados por la hoja:
-  // fechas como "26/02/2026", porcentajes como "15.22%", moneda como "$17,942.84"
-  // Solo necesitamos mostrarlos tal como llegan.
-  function buildCard(titulo, filas, opts) {
-    opts = opts || {};
-    let card = '<div class="resumen-card"><h3>' + titulo + '</h3>';
-    filas.forEach(function(row, index) {
-      // row[0] = etiqueta, row[1] = valor (ambos strings de getDisplayValues)
-      const etiqueta = row[0] ? String(row[0]).trim() : '';
-      if (!etiqueta) return;
-      const valor = row[1] !== null && row[1] !== '' ? String(row[1]).trim() : '-';
-      const isEditable   = opts.editableRows && opts.editableRows.includes(index);
-      const isHighlight  = opts.highlightFn ? opts.highlightFn(etiqueta, valor) : false;
-      const isSuccess    = opts.successFn   ? opts.successFn(etiqueta, valor)   : false;
-      
-      let note = '';
-      let celdaRef = '';
-      let formula = '';
-      if (isEditable) {
-        celdaRef = (index === 1) ? 'B4' : 'B6';
-        let rawNote = (index === 1) ? data.notaB4 : data.notaB6;
-        formula = (index === 1) ? data.formulaB4 : data.formulaB6;
-        if (rawNote) {
-          note = rawNote.trim().replace(/\. (?=[0-9])/g, '\n').replace(/\.$/, '');
+    // Los valores de getDisplayValues() ya vienen formateados por la hoja:
+    // fechas como "26/02/2026", porcentajes como "15.22%", moneda como "$17,942.84"
+    // Solo necesitamos mostrarlos tal como llegan.
+    function buildCard(titulo, filas, opts) {
+      opts = opts || {};
+      let card = '<div class="resumen-card"><h3>' + titulo + "</h3>";
+      filas.forEach(function (row, index) {
+        // row[0] = etiqueta, row[1] = valor (ambos strings de getDisplayValues)
+        const etiqueta = row[0] ? String(row[0]).trim() : "";
+        if (!etiqueta) return;
+        const valor =
+          row[1] !== null && row[1] !== "" ? String(row[1]).trim() : "-";
+        const isEditable =
+          opts.editableRows && opts.editableRows.includes(index);
+        const isHighlight = opts.highlightFn
+          ? opts.highlightFn(etiqueta, valor)
+          : false;
+        const isSuccess = opts.successFn
+          ? opts.successFn(etiqueta, valor)
+          : false;
+
+        let note = "";
+        let celdaRef = "";
+        let formula = "";
+        if (isEditable) {
+          celdaRef = index === 1 ? "B4" : "B6";
+          let rawNote = index === 1 ? data.notaB4 : data.notaB6;
+          formula = index === 1 ? data.formulaB4 : data.formulaB6;
+          if (rawNote) {
+            note = rawNote
+              .trim()
+              .replace(/\. (?=[0-9])/g, "\n")
+              .replace(/\.$/, "");
+          }
         }
-      }
-      const cls = isEditable ? 'editable' : (isSuccess ? 'success' : (isHighlight ? 'highlight' : ''));
-      card += `
+        const cls = isEditable
+          ? "editable"
+          : isSuccess
+            ? "success"
+            : isHighlight
+              ? "highlight"
+              : "";
+        card += `
         <div class="resumen-item">
           <span class="resumen-label">${sanitize(etiqueta)}</span>
           <span class="resumen-value ${cls}"
-                ${isEditable && note ? `data-note="${sanitize(note)}"` : ''}
-                ${isEditable && formula ? `data-formula="${sanitize(formula)}"` : ''}
-                ${isEditable && note ? `onmouseenter="showAppTooltip(this)" onmouseleave="hideAppTooltip()"` : ''}
-                ${isEditable ? `onclick="editarCelda(this, '${celdaRef}', '${sanitize(etiqueta)}')"` : ''}>
+                ${isEditable && note ? `data-note="${sanitize(note)}"` : ""}
+                ${isEditable && formula ? `data-formula="${sanitize(formula)}"` : ""}
+                ${isEditable && note ? `onmouseenter="showAppTooltip(this)" onmouseleave="hideAppTooltip()"` : ""}
+                ${isEditable ? `onclick="editarCelda(this, '${celdaRef}', '${sanitize(etiqueta)}')"` : ""}>
             ${sanitize(valor)}
           </span>
         </div>`;
-    });
-    card += '</div>';
-    return card;
-  }
-
-  let html = '';
-
-  // Cuadro 1 (A3:B11) — Resumen BBVA
-  if (data.cuadro1 && data.cuadro1.length > 0) {
-    html += buildCard('📊 Resumen BBVA', data.cuadro1, {
-      editableRows: [1, 3]  // B4 (Cantidad) y B6 (Monto cuota)
-    });
-  }
-
-  // Cuadro 2 (E2:F5) — Objetivos
-  if (data.cuadro2 && data.cuadro2.length > 0) {
-    html += buildCard('🎯 Objetivos', data.cuadro2, {
-      highlightFn: function(label) {
-        return label.toLowerCase().includes('min') || label.toLowerCase().includes('mín');
-      }
-    });
-  }
-
-  // Cuadro 3 (E7:F12) — Resultados con calculadora interactiva
-  if (data.cuadro3 && data.cuadro3.length > 0) {
-    const rows = data.cuadro3;
-    // Extraer valores: Capital Inicial (E7), NET PROFIT (E8), %APR (E9), Días (E10), Retiro mensual (E11), Capital Final (E12)
-    function parseNum(str) {
-      if (!str || str === '-') return 0;
-      return parseFloat(String(str).replace(/[$,%\s]/g, '').replace(',', '.')) || 0;
+      });
+      card += "</div>";
+      return card;
     }
-    const capitalInicial = parseNum(rows[0] ? rows[0][1] : '0');
-    const netProfit      = parseNum(rows[1] ? rows[1][1] : '0');
-    const aprVal         = parseNum(rows[2] ? rows[2][1] : '0');
-    const diasVal        = parseNum(rows[3] ? rows[3][1] : '0');
-    const retiroVal      = parseNum(rows[4] ? rows[4][1] : '0');
-    const capitalFinal   = parseNum(rows[5] ? rows[5][1] : '0');
 
-    const netProfitStr = rows[1] ? String(rows[1][1]).trim() : '-';
-    const capInicStr   = rows[0] ? String(rows[0][1]).trim() : '-';
+    let html = "";
 
-    html += `
+    // Cuadro 1 (A3:B11) — Resumen BBVA
+    if (data.cuadro1 && data.cuadro1.length > 0) {
+      html += buildCard("📊 Resumen BBVA", data.cuadro1, {
+        editableRows: [1, 3], // B4 (Cantidad) y B6 (Monto cuota)
+      });
+    }
+
+    // Cuadro 2 (E2:F5) — Objetivos
+    if (data.cuadro2 && data.cuadro2.length > 0) {
+      html += buildCard("🎯 Objetivos", data.cuadro2, {
+        highlightFn: function (label) {
+          return (
+            label.toLowerCase().includes("min") ||
+            label.toLowerCase().includes("mín")
+          );
+        },
+      });
+    }
+
+    // Cuadro 3 (E7:F12) — Resultados con calculadora interactiva
+    if (data.cuadro3 && data.cuadro3.length > 0) {
+      const rows = data.cuadro3;
+      // Extraer valores: Capital Inicial (E7), NET PROFIT (E8), %APR (E9), Días (E10), Retiro mensual (E11), Capital Final (E12)
+      function parseNum(str) {
+        if (!str || str === "-") return 0;
+        return (
+          parseFloat(
+            String(str)
+              .replace(/[$,%\s]/g, "")
+              .replace(",", "."),
+          ) || 0
+        );
+      }
+      const capitalInicial = parseNum(rows[0] ? rows[0][1] : "0");
+      const netProfit = parseNum(rows[1] ? rows[1][1] : "0");
+      const aprVal = parseNum(rows[2] ? rows[2][1] : "0");
+      const diasVal = parseNum(rows[3] ? rows[3][1] : "0");
+      const retiroVal = parseNum(rows[4] ? rows[4][1] : "0");
+      const capitalFinal = parseNum(rows[5] ? rows[5][1] : "0");
+
+      const netProfitStr = rows[1] ? String(rows[1][1]).trim() : "-";
+      const capInicStr = rows[0] ? String(rows[0][1]).trim() : "-";
+
+      html += `
     <div class="resumen-card resumen-calc-card">
       <h3>💰 Resultados</h3>
       <div class="resumen-item">
-        <span class="resumen-label">${rows[0] ? sanitize(String(rows[0][0])) : 'Capital Inicial'}</span>
+        <span class="resumen-label">${rows[0] ? sanitize(String(rows[0][0])) : "Capital Inicial"}</span>
         <span class="resumen-value">${sanitize(capInicStr)}</span>
       </div>
       <div class="resumen-item">
-        <span class="resumen-label">${rows[1] ? sanitize(String(rows[1][0])) : 'NET PROFIT'}</span>
+        <span class="resumen-label">${rows[1] ? sanitize(String(rows[1][0])) : "NET PROFIT"}</span>
         <span class="resumen-value success">${sanitize(netProfitStr)}</span>
       </div>
       <div class="resumen-item calc-editable-item">
-        <span class="resumen-label">${rows[2] ? sanitize(String(rows[2][0])) : '%APR'}</span>
+        <span class="resumen-label">${rows[2] ? sanitize(String(rows[2][0])) : "%APR"}</span>
         <div class="calc-input-wrap">
           <input type="number" id="calcApr" class="calc-input" value="${aprVal}" step="1" min="0" max="1000" />
           <span class="calc-unit">%</span>
         </div>
       </div>
       <div class="resumen-item calc-editable-item">
-        <span class="resumen-label">${rows[3] ? sanitize(String(rows[3][0])) : 'Días'}</span>
+        <span class="resumen-label">${rows[3] ? sanitize(String(rows[3][0])) : "Días"}</span>
         <div class="calc-input-wrap">
           <input type="number" id="calcDias" class="calc-input" value="${diasVal}" step="1" min="1" />
           <span class="calc-unit">días</span>
         </div>
       </div>
       <div class="resumen-item calc-editable-item">
-        <span class="resumen-label">${rows[4] ? sanitize(String(rows[4][0])) : 'Retiro mensual'}</span>
+        <span class="resumen-label">${rows[4] ? sanitize(String(rows[4][0])) : "Retiro mensual"}</span>
         <div class="calc-input-wrap">
           <span class="calc-unit">$</span>
           <input type="number" id="calcRetiro" class="calc-input" value="${retiroVal}" step="1" min="0" />
         </div>
       </div>
       <div class="resumen-item calc-result-item">
-        <span class="resumen-label">${rows[5] ? sanitize(String(rows[5][0])) : 'Capital Final'}</span>
+        <span class="resumen-label">${rows[5] ? sanitize(String(rows[5][0])) : "Capital Final"}</span>
         <span class="resumen-value highlight calc-result" id="calcCapitalFinal">
-          $${capitalFinal.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          $${capitalFinal.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </span>
       </div>
       <div class="calc-note">✏️ Edita APR, días o retiro para simular tu capital final</div>
     </div>
     `;
-  }
-
-  container.innerHTML = html || '<div class="resumen-card" style="grid-column:1/-1;"><p style="color:var(--gray);">No hay datos de resumen disponibles</p></div>';
-
-  // Adjuntar calculadora en tiempo real
-  setTimeout(function() {
-    const calcApr    = document.getElementById('calcApr');
-    const calcDias   = document.getElementById('calcDias');
-    const calcRetiro = document.getElementById('calcRetiro');
-    const calcResult = document.getElementById('calcCapitalFinal');
-    if (!calcApr || !calcDias || !calcRetiro || !calcResult) return;
-
-    // Leer capital inicial del primer cuadro3 row
-    const rows = data.cuadro3 || [];
-    function parseNum(s) {
-      if (!s || s === '-') return 0;
-      return parseFloat(String(s).replace(/[$,%\s]/g, '').replace(',','.')) || 0;
     }
-    const ci = parseNum(rows[0] ? rows[0][1] : '0');
 
-    function recalcular() {
-      const aprPct  = parseFloat(calcApr.value)   || 0;
-      const dias    = parseFloat(calcDias.value)   || 0;
-      const retiro  = parseFloat(calcRetiro.value) || 0;
+    container.innerHTML =
+      html ||
+      '<div class="resumen-card" style="grid-column:1/-1;"><p style="color:var(--gray);">No hay datos de resumen disponibles</p></div>';
 
-      // Fórmula exacta de Google Sheets:
-      // =(CI*(1+r/365)^(INT(d/30)*30) - retiro*((1+r/365)^(INT(d/30)*30)-1)/((1+r/365)^30-1))*(1+r/365)^RESIDUO(d,30)
-      const r         = aprPct / 100;               // APR como decimal
-      const rDay      = r / 365;                    // tasa diaria
-      const mesesInt  = Math.floor(dias / 30);      // meses completos enteros
-      const diasC     = mesesInt * 30;              // días de meses completos
-      const diasR     = dias % 30;                  // días residuales (RESIDUO)
-      const factorC   = Math.pow(1 + rDay, diasC);  // (1+r/365)^(INT(d/30)*30)
-      const factor30  = Math.pow(1 + rDay, 30);     // (1+r/365)^30
-      const factorR   = Math.pow(1 + rDay, diasR);  // (1+r/365)^RESIDUO(d,30)
+    // Adjuntar calculadora en tiempo real
+    setTimeout(function () {
+      const calcApr = document.getElementById("calcApr");
+      const calcDias = document.getElementById("calcDias");
+      const calcRetiro = document.getElementById("calcRetiro");
+      const calcResult = document.getElementById("calcCapitalFinal");
+      if (!calcApr || !calcDias || !calcRetiro || !calcResult) return;
 
-      let capital;
-      if (retiro === 0 || Math.abs(factor30 - 1) < 1e-12) {
-        // Sin retiro o tasa cero: crecimiento simple
-        capital = ci * factorC * factorR;
-      } else {
-        capital = (ci * factorC - retiro * (factorC - 1) / (factor30 - 1)) * factorR;
+      // Leer capital inicial del primer cuadro3 row
+      const rows = data.cuadro3 || [];
+      function parseNum(s) {
+        if (!s || s === "-") return 0;
+        return (
+          parseFloat(
+            String(s)
+              .replace(/[$,%\s]/g, "")
+              .replace(",", "."),
+          ) || 0
+        );
+      }
+      const ci = parseNum(rows[0] ? rows[0][1] : "0");
+
+      function recalcular() {
+        const aprPct = parseFloat(calcApr.value) || 0;
+        const dias = parseFloat(calcDias.value) || 0;
+        const retiro = parseFloat(calcRetiro.value) || 0;
+
+        // Fórmula exacta de Google Sheets:
+        // =(CI*(1+r/365)^(INT(d/30)*30) - retiro*((1+r/365)^(INT(d/30)*30)-1)/((1+r/365)^30-1))*(1+r/365)^RESIDUO(d,30)
+        const r = aprPct / 100; // APR como decimal
+        const rDay = r / 365; // tasa diaria
+        const mesesInt = Math.floor(dias / 30); // meses completos enteros
+        const diasC = mesesInt * 30; // días de meses completos
+        const diasR = dias % 30; // días residuales (RESIDUO)
+        const factorC = Math.pow(1 + rDay, diasC); // (1+r/365)^(INT(d/30)*30)
+        const factor30 = Math.pow(1 + rDay, 30); // (1+r/365)^30
+        const factorR = Math.pow(1 + rDay, diasR); // (1+r/365)^RESIDUO(d,30)
+
+        let capital;
+        if (retiro === 0 || Math.abs(factor30 - 1) < 1e-12) {
+          // Sin retiro o tasa cero: crecimiento simple
+          capital = ci * factorC * factorR;
+        } else {
+          capital =
+            (ci * factorC - (retiro * (factorC - 1)) / (factor30 - 1)) *
+            factorR;
+        }
+
+        capital = Math.max(0, capital);
+        calcResult.textContent =
+          "$" +
+          capital.toLocaleString("es-ES", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          });
+        calcResult.classList.toggle("calc-positive", capital >= ci);
+        calcResult.classList.toggle("calc-negative", capital < ci);
       }
 
-      capital = Math.max(0, capital);
-      calcResult.textContent = '$' + capital.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      calcResult.classList.toggle('calc-positive', capital >= ci);
-      calcResult.classList.toggle('calc-negative', capital < ci);
+      calcApr.addEventListener("input", recalcular);
+      calcDias.addEventListener("input", recalcular);
+      calcRetiro.addEventListener("input", recalcular);
+      recalcular();
+    }, 50);
+  }
+
+  function editarCelda(element, celdaRef, titulo) {
+    const nota = element.getAttribute("data-note") || "";
+    const formula = element.getAttribute("data-formula") || "";
+
+    let addends = [];
+
+    if (formula && formula.includes("+")) {
+      const amounts = formula
+        .replace("=", "")
+        .split("+")
+        .map((s) => parseFloat(s.trim()));
+      // Split más robusto: por salto de línea o por punto y espacio
+      const rawNotes = nota ? nota.trim().split(/\n|\. /) : [];
+      addends = amounts.map((v, i) => ({
+        valor: v,
+        desc: limpiarDescripcion((rawNotes[i] || "").replace(/\.$/, "")),
+      }));
+    } else if (nota && nota.trim()) {
+      const rawItems = nota.trim().split(/\n|\. /);
+      rawItems.forEach(function (item) {
+        item = item.trim().replace(/\.$/, "");
+        if (!item) return;
+        let val = 0;
+        const currencyMatch = item.match(
+          /(?:S\/|\$|[A-Z]{2,4})?\s*([\d]+(?:[.,][\d]+)?)$/i,
+        );
+        if (currencyMatch) val = parseFloat(currencyMatch[1].replace(",", "."));
+        addends.push({ valor: val, desc: limpiarDescripcion(item) });
+      });
     }
 
-    calcApr.addEventListener('input',    recalcular);
-    calcDias.addEventListener('input',   recalcular);
-    calcRetiro.addEventListener('input', recalcular);
-    recalcular();
-  }, 50);
-}
+    if (addends.length === 0) {
+      const valFinal =
+        parseFloat(element.textContent.replace(/[^\d.-]/g, "")) || 0;
+      addends = [{ valor: valFinal, desc: "Concepto inicial" }];
+    }
 
-function editarCelda(element, celdaRef, titulo) {
-  const nota    = element.getAttribute('data-note') || '';
-  const formula = element.getAttribute('data-formula') || '';
+    const overlay = document.createElement("div");
+    overlay.id = "editB6Modal";
+    overlay.style.cssText = `position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(14px);animation:fadeIn 0.2s ease;`;
 
-  let addends = []; 
-  
-  if (formula && formula.includes('+')) {
-    const amounts = formula.replace('=', '').split('+').map(s => parseFloat(s.trim()));
-    // Split más robusto: por salto de línea o por punto y espacio
-    const rawNotes = nota ? nota.trim().split(/\n|\. /) : [];
-    addends = amounts.map((v, i) => ({ 
-      valor: v, 
-      desc: limpiarDescripcion((rawNotes[i] || '').replace(/\.$/, '')) 
-    }));
-  } else if (nota && nota.trim()) {
-    const rawItems = nota.trim().split(/\n|\. /);
-    rawItems.forEach(function(item) {
-      item = item.trim().replace(/\.$/, '');
-      if (!item) return;
-      let val = 0; 
-      const currencyMatch = item.match(/(?:S\/|\$|[A-Z]{2,4})?\s*([\d]+(?:[.,][\d]+)?)$/i);
-      if (currencyMatch) val = parseFloat(currencyMatch[1].replace(',', '.'));
-      addends.push({ valor: val, desc: limpiarDescripcion(item) });
-    });
-  }
-
-  if (addends.length === 0) {
-    const valFinal = parseFloat(element.textContent.replace(/[^\d.-]/g, '')) || 0;
-    addends = [{ valor: valFinal, desc: 'Concepto inicial' }];
-  }
-
-  const overlay = document.createElement('div');
-  overlay.id = 'editB6Modal';
-  overlay.style.cssText = `position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(14px);animation:fadeIn 0.2s ease;`;
-
-  overlay.innerHTML = `
+    overlay.innerHTML = `
     <div class="edit-modal-content">
       <div class="edit-modal-header">
         <div class="edit-modal-icon">S/</div>
@@ -1087,14 +1377,16 @@ function editarCelda(element, celdaRef, titulo) {
     </div>
   `;
 
-  document.body.appendChild(overlay);
+    document.body.appendChild(overlay);
 
-  const container = document.getElementById('editItemsContainer');
-  const totalEl = document.getElementById('editTotalCalc');
+    const container = document.getElementById("editItemsContainer");
+    const totalEl = document.getElementById("editTotalCalc");
 
-  function renderizarItems() {
-    container.innerHTML = addends.map((a, i) => `
-      <div class="edit-item-row" style="display:flex; border-bottom:1px solid rgba(255,255,255,0.06); align-items:center; background: ${i % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent'}">
+    function renderizarItems() {
+      container.innerHTML = addends
+        .map(
+          (a, i) => `
+      <div class="edit-item-row" style="display:flex; border-bottom:1px solid rgba(255,255,255,0.06); align-items:center; background: ${i % 2 === 0 ? "rgba(255,255,255,0.01)" : "transparent"}">
         <div style="flex:0 0 110px; padding:14px; border-right:1px solid rgba(255,255,255,0.06);">
           <input type="number" step="0.01" value="${a.valor}" class="edit-inp-val"
                  style="width:100%; background:transparent; border:none; color:var(--primary); font-family:var(--font-mono); font-size:1.1rem; outline:none; font-weight:600;" oninput="actualizarTotalDesdeDOM()"/>
@@ -1105,22 +1397,32 @@ function editarCelda(element, celdaRef, titulo) {
           <button title="Eliminar" onclick="this.closest('.edit-item-row').remove(); actualizarTotalDesdeDOM();" style="background:rgba(255, 77, 109, 0.1); border:none; color:#ff4d6d; cursor:pointer; font-size:1.1rem; width:28px; height:28px; border-radius:6px;">&times;</button>
         </div>
       </div>
-    `).join('');
-    actualizarTotalDesdeDOM();
-  }
+    `,
+        )
+        .join("");
+      actualizarTotalDesdeDOM();
+    }
 
-  window.actualizarTotalDesdeDOM = function() {
-    let sum = 0;
-    container.querySelectorAll('.edit-inp-val').forEach(inp => sum += parseFloat(inp.value) || 0);
-    totalEl.textContent = 'S/ ' + sum.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    totalEl._sumValue = sum;
-  };
+    window.actualizarTotalDesdeDOM = function () {
+      let sum = 0;
+      container
+        .querySelectorAll(".edit-inp-val")
+        .forEach((inp) => (sum += parseFloat(inp.value) || 0));
+      totalEl.textContent =
+        "S/ " +
+        sum.toLocaleString("es-ES", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+      totalEl._sumValue = sum;
+    };
 
-  document.getElementById('btnAddEditRow').onclick = () => {
-    const newRow = document.createElement('div');
-    newRow.className = 'edit-item-row';
-    newRow.style.cssText = 'display:flex; border-bottom:1px solid rgba(255,255,255,0.06); align-items:center;';
-    newRow.innerHTML = `
+    document.getElementById("btnAddEditRow").onclick = () => {
+      const newRow = document.createElement("div");
+      newRow.className = "edit-item-row";
+      newRow.style.cssText =
+        "display:flex; border-bottom:1px solid rgba(255,255,255,0.06); align-items:center;";
+      newRow.innerHTML = `
         <div style="flex:0 0 110px; padding:14px; border-right:1px solid rgba(255,255,255,0.06);">
           <input type="number" step="0.01" value="0" class="edit-inp-val"
                  style="width:100%; background:transparent; border:none; color:var(--primary); font-family:var(--font-mono); font-size:1.1rem; outline:none; font-weight:600;" oninput="actualizarTotalDesdeDOM()"/>
@@ -1131,247 +1433,338 @@ function editarCelda(element, celdaRef, titulo) {
           <button title="Eliminar" onclick="this.closest('.edit-item-row').remove(); actualizarTotalDesdeDOM();" style="background:rgba(255, 77, 109, 0.1); border:none; color:#ff4d6d; cursor:pointer; font-size:1.1rem; width:28px; height:28px; border-radius:6px;">&times;</button>
         </div>
     `;
-    container.appendChild(newRow);
-    newRow.scrollIntoView({ behavior: 'smooth' });
-    newRow.querySelector('.edit-inp-val').focus();
-  };
+      container.appendChild(newRow);
+      newRow.scrollIntoView({ behavior: "smooth" });
+      newRow.querySelector(".edit-inp-val").focus();
+    };
 
-  renderizarItems();
+    renderizarItems();
 
-  document.getElementById('editB6Confirm').onclick = function() {
-    const rows = container.querySelectorAll('.edit-item-row');
-    const finalAddends = Array.from(rows).map(row => {
-      const val = parseFloat(row.querySelector('.edit-inp-val').value) || 0;
-      const desc = row.querySelector('.edit-inp-desc').value.trim();
-      return { valor: val, desc: desc };
+    document.getElementById("editB6Confirm").onclick = function () {
+      const rows = container.querySelectorAll(".edit-item-row");
+      const finalAddends = Array.from(rows).map((row) => {
+        const val = parseFloat(row.querySelector(".edit-inp-val").value) || 0;
+        const desc = row.querySelector(".edit-inp-desc").value.trim();
+        return { valor: val, desc: desc };
+      });
+
+      const sumTotal = finalAddends.reduce((s, a) => s + a.valor, 0);
+      const formulaArr = finalAddends.map((a) => a.valor.toFixed(2));
+      const notaArr = finalAddends.map(
+        (a) => `${limpiarDescripcion(a.desc)}: S/ ${a.valor.toFixed(2)}`,
+      );
+
+      const nuevaFormula = "=" + formulaArr.join("+");
+      const nuevaNota = notaArr.join(". ");
+
+      this.disabled = true;
+      this.innerHTML = "Guardando...";
+
+      google.script.run
+        .withSuccessHandler((res) => {
+          overlay.remove();
+          if (res && res.success) {
+            showAlert("success", "Actualizado correctamente");
+            cargarResumen(true);
+          } else {
+            showAlert("error", "Error al guardar");
+          }
+        })
+        .withFailureHandler(() => {
+          overlay.remove();
+          showAlert("error", "Error de conexión");
+        })
+        .actualizarCelda(celdaRef, nuevaFormula, nuevaNota);
+    };
+
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) overlay.remove();
     });
+  }
 
-    const sumTotal = finalAddends.reduce((s, a) => s + a.valor, 0);
-    const formulaArr = finalAddends.map(a => a.valor.toFixed(2));
-    const notaArr    = finalAddends.map(a => `${limpiarDescripcion(a.desc)}: S/ ${a.valor.toFixed(2)}`);
-    
-    const nuevaFormula = '=' + formulaArr.join('+');
-    const nuevaNota    = notaArr.join('. ');
+  /** Limpia descripciones de colones y montos redundantes para evitar duplicación */
+  function limpiarDescripcion(str) {
+    if (!str) return "";
+    let clean = str.trim();
+    // Regex para detectar ": S/ 123.45" o ": 123.45" al final
+    // Cubre formatos: ": S/ 10", ": $10", ": 10", " S/ 10", ": USDT 10"
+    const tailRegex = /[:\s]+(?:S\/|\$|[A-Z]{3,4})?\s*[\d]+(?:[.,][\d]+)?$/i;
 
-    this.disabled = true; this.innerHTML = 'Guardando...';
+    // Limpieza recursiva: mientras encuentre una "cola" de monto, la quita
+    let previous;
+    do {
+      previous = clean;
+      clean = clean.replace(tailRegex, "").trim();
+    } while (clean !== previous);
 
-    google.script.run
-      .withSuccessHandler(res => {
-        overlay.remove();
-        if (res && res.success) {
-          showAlert('success', 'Actualizado correctamente');
-          cargarResumen(true);
-        } else {
-          showAlert('error', 'Error al guardar');
-        }
+    return clean || "Sin descripción";
+  }
+
+  // ============================================
+  // UTILIDADES
+  // ============================================
+
+  /** Verifica si google.script.run está disponible */
+  function isGASAvailable() {
+    return (
+      typeof google !== "undefined" &&
+      google.script &&
+      typeof google.script.run !== "undefined"
+    );
+  }
+
+  /** Extrae el mensaje de error de una respuesta o Error object */
+  function extraerMensaje(obj, fallback) {
+    if (!obj) return fallback || "Error desconocido";
+    if (typeof obj === "string") return obj;
+    if (obj.message) return obj.message;
+    if (obj.msg) return obj.msg;
+    if (obj.error)
+      return typeof obj.error === "string"
+        ? obj.error
+        : JSON.stringify(obj.error);
+    return fallback || "Error desconocido";
+  }
+
+  /** Sanitiza texto para evitar XSS en innerHTML */
+  function sanitize(str) {
+    if (!str) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  /** Sistema de Tooltip Robusto */
+  function showAppTooltip(element) {
+    const note = element.getAttribute("data-note");
+    if (!note) return;
+
+    let tooltip = document.getElementById("app-tooltip");
+    if (!tooltip) {
+      tooltip = document.createElement("div");
+      tooltip.id = "app-tooltip";
+      document.body.appendChild(tooltip);
+    }
+
+    tooltip.textContent = note;
+    tooltip.style.display = "block";
+    tooltip.style.opacity = "0";
+
+    // Timeout para asegurar que el DOM ha actualizado el contenido antes de animar
+    setTimeout(() => {
+      tooltip.style.opacity = "1";
+    }, 10);
+  }
+
+  function hideAppTooltip() {
+    const tooltip = document.getElementById("app-tooltip");
+    if (tooltip) {
+      tooltip.style.display = "none";
+    }
+  }
+
+  /** Actualiza el badge contador de una sección */
+  function actualizarContador(id, count) {
+    const el = document.getElementById(id);
+    if (!el) return;
+
+    if (id === "countHistorial") {
+      el.textContent = count + (count === 1 ? " completada" : " completadas");
+    } else if (id === "countActivas") {
+      el.textContent =
+        count === 0 ? "0" : count + (count === 1 ? " activa" : " activas");
+    } else {
+      el.textContent = count;
+    }
+  }
+
+  function formatearFecha(fecha) {
+    if (!fecha) return "-";
+    try {
+      const d = new Date(fecha.replace(/-/g, "/"));
+      if (isNaN(d.getTime())) return "-";
+      return d.toLocaleString("es-ES", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch (e) {
+      return "-";
+    }
+  }
+
+  function formatearNumero(num) {
+    if (num === null || num === undefined || num === "" || isNaN(Number(num)))
+      return "-";
+    try {
+      return parseFloat(num).toLocaleString("es-ES", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 4,
+      });
+    } catch (e) {
+      return "-";
+    }
+  }
+
+  function formatearMonto(monto, moneda) {
+    const mon = moneda || "USDT";
+    if (mon === "USDT") {
+      if (
+        monto === null ||
+        monto === undefined ||
+        monto === "" ||
+        isNaN(Number(monto))
+      )
+        return "$-";
+      return (
+        "$" +
+        parseFloat(monto).toLocaleString("es-ES", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      );
+    }
+    if (mon === "ETH" || mon === "BTC") {
+      if (
+        monto === null ||
+        monto === undefined ||
+        monto === "" ||
+        isNaN(Number(monto))
+      )
+        return "- " + mon;
+      return (
+        parseFloat(monto).toLocaleString("es-ES", {
+          minimumFractionDigits: 6,
+          maximumFractionDigits: 6,
+        }) +
+        " " +
+        mon
+      );
+    }
+    return formatearNumero(monto) + " " + mon;
+  }
+
+  function formatearFinal(valor, moneda) {
+    const mon = moneda || "USDT";
+    if (
+      valor === null ||
+      valor === undefined ||
+      valor === "" ||
+      isNaN(Number(valor))
+    )
+      return "-";
+    if (mon === "USDT") {
+      return (
+        "$" +
+        parseFloat(valor).toLocaleString("es-ES", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      );
+    }
+    if (mon === "ETH" || mon === "BTC") {
+      return (
+        parseFloat(valor).toLocaleString("es-ES", {
+          minimumFractionDigits: 6,
+          maximumFractionDigits: 6,
+        }) +
+        " " +
+        mon
+      );
+    }
+    return formatearNumero(valor);
+  }
+
+  function formatearInteres(valor, moneda) {
+    const mon = moneda || "USDT";
+    if (
+      valor === null ||
+      valor === undefined ||
+      valor === "" ||
+      isNaN(Number(valor))
+    )
+      return "-";
+    // Interest always in USDT with 2 decimals
+    return (
+      "$" +
+      parseFloat(valor).toLocaleString("es-ES", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
       })
-      .withFailureHandler(() => {
-        overlay.remove();
-        showAlert('error', 'Error de conexión');
-      })
-      .actualizarCelda(celdaRef, nuevaFormula, nuevaNota);
-  };
-
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) overlay.remove();
-  });
-}
-
-/** Limpia descripciones de colones y montos redundantes para evitar duplicación */
-function limpiarDescripcion(str) {
-  if (!str) return '';
-  let clean = str.trim();
-  // Regex para detectar ": S/ 123.45" o ": 123.45" al final
-  // Cubre formatos: ": S/ 10", ": $10", ": 10", " S/ 10", ": USDT 10"
-  const tailRegex = /[:\s]+(?:S\/|\$|[A-Z]{3,4})?\s*[\d]+(?:[.,][\d]+)?$/i;
-  
-  // Limpieza recursiva: mientras encuentre una "cola" de monto, la quita
-  let previous;
-  do {
-    previous = clean;
-    clean = clean.replace(tailRegex, '').trim();
-  } while (clean !== previous);
-  
-  return clean || 'Sin descripción';
-}
-
-// ============================================
-// UTILIDADES
-// ============================================
-
-/** Verifica si google.script.run está disponible */
-function isGASAvailable() {
-  return typeof google !== 'undefined' && google.script && typeof google.script.run !== 'undefined';
-}
-
-/** Extrae el mensaje de error de una respuesta o Error object */
-function extraerMensaje(obj, fallback) {
-  if (!obj) return fallback || 'Error desconocido';
-  if (typeof obj === 'string') return obj;
-  if (obj.message) return obj.message;
-  if (obj.msg)     return obj.msg;
-  if (obj.error)   return typeof obj.error === 'string' ? obj.error : JSON.stringify(obj.error);
-  return fallback || 'Error desconocido';
-}
-
-/** Sanitiza texto para evitar XSS en innerHTML */
-function sanitize(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-/** Sistema de Tooltip Robusto */
-function showAppTooltip(element) {
-  const note = element.getAttribute('data-note');
-  if (!note) return;
-  
-  let tooltip = document.getElementById('app-tooltip');
-  if (!tooltip) {
-    tooltip = document.createElement('div');
-    tooltip.id = 'app-tooltip';
-    document.body.appendChild(tooltip);
-  }
-  
-  tooltip.textContent = note;
-  tooltip.style.display = 'block';
-  tooltip.style.opacity = '0';
-  
-  // Timeout para asegurar que el DOM ha actualizado el contenido antes de animar
-  setTimeout(() => {
-    tooltip.style.opacity = '1';
-  }, 10);
-}
-
-function hideAppTooltip() {
-  const tooltip = document.getElementById('app-tooltip');
-  if (tooltip) {
-    tooltip.style.display = 'none';
-  }
-}
-
-/** Actualiza el badge contador de una sección */
-function actualizarContador(id, count) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  
-  if (id === 'countHistorial') {
-    el.textContent = count + (count === 1 ? ' completada' : ' completadas');
-  } else if (id === 'countActivas') {
-    el.textContent = count === 0 ? '0' : (count + (count === 1 ? ' activa' : ' activas'));
-  } else {
-    el.textContent = count;
-  }
-}
-
-function formatearFecha(fecha) {
-  if (!fecha) return '-';
-  try {
-    const d = new Date(fecha.replace(/-/g, '/'));
-    if (isNaN(d.getTime())) return '-';
-    return d.toLocaleString('es-ES', {
-      day: '2-digit', month: '2-digit', year: 'numeric',
-      hour: '2-digit', minute: '2-digit'
-    });
-  } catch (e) { return '-'; }
-}
-
-function formatearNumero(num) {
-  if (num === null || num === undefined || num === '' || isNaN(Number(num))) return '-';
-  try {
-    return parseFloat(num).toLocaleString('es-ES', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 4
-    });
-  } catch (e) { return '-'; }
-}
-
-function formatearMonto(monto, moneda) {
-  const mon = moneda || 'USDT';
-  if (mon === 'USDT') {
-    if (monto === null || monto === undefined || monto === '' || isNaN(Number(monto))) return '$-';
-    return '$' + parseFloat(monto).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
-  if (mon === 'ETH' || mon === 'BTC') {
-    if (monto === null || monto === undefined || monto === '' || isNaN(Number(monto))) return '- ' + mon;
-    return parseFloat(monto).toLocaleString('es-ES', { minimumFractionDigits: 6, maximumFractionDigits: 6 }) + ' ' + mon;
-  }
-  return formatearNumero(monto) + ' ' + mon;
-}
-
-function formatearFinal(valor, moneda) {
-  const mon = moneda || 'USDT';
-  if (valor === null || valor === undefined || valor === '' || isNaN(Number(valor))) return '-';
-  if (mon === 'USDT') {
-    return '$' + parseFloat(valor).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
-  if (mon === 'ETH' || mon === 'BTC') {
-    return parseFloat(valor).toLocaleString('es-ES', { minimumFractionDigits: 6, maximumFractionDigits: 6 }) + ' ' + mon;
-  }
-  return formatearNumero(valor);
-}
-
-function formatearInteres(valor, moneda) {
-  const mon = moneda || 'USDT';
-  if (valor === null || valor === undefined || valor === '' || isNaN(Number(valor))) return '-';
-  // Interest always in USDT with 2 decimals
-  return '$' + parseFloat(valor).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function getBadgeClass(tipoOperacion) {
-  if (!tipoOperacion) return '';
-  if (tipoOperacion.includes('Sell ETH')) return 'badge-eth-sell';
-  if (tipoOperacion.includes('Buy ETH'))  return 'badge-eth-buy';
-  if (tipoOperacion.includes('Sell BTC')) return 'badge-btc-sell';
-  if (tipoOperacion.includes('Buy BTC'))  return 'badge-btc-buy';
-  return '';
-}
-
-function showAlert(type, message) {
-  // Usar cache DOM
-  let alertEl, msgEl;
-  
-  if (type === 'success') {
-    alertEl = DOM.alertSuccess;
-    msgEl = DOM.alertSuccessMsg;
-  } else if (type === 'info') {
-    alertEl = DOM.alertInfo;
-    msgEl = DOM.alertInfoMsg;
-  } else {
-    alertEl = DOM.alertError;
-    msgEl = DOM.alertErrorMsg;
+    );
   }
 
-  if (!alertEl) alertEl = document.getElementById(type === 'success' ? 'alertSuccess' : type === 'info' ? 'alertInfo' : 'alertError');
-  if (!msgEl) msgEl = document.getElementById(type === 'success' ? 'alertSuccessMsg' : type === 'info' ? 'alertInfoMsg' : 'alertErrorMsg');
-
-  if (msgEl)   msgEl.textContent = message;
-  if (alertEl) alertEl.classList.add('show');
-
-  setTimeout(() => { if (alertEl) alertEl.classList.remove('show'); }, 5000);
-}
-
-function showLoading(elementId, show) {
-  const element = document.getElementById(elementId);
-  if (element) {
-    element.classList.toggle('show', show);
+  function getBadgeClass(tipoOperacion) {
+    if (!tipoOperacion) return "";
+    if (tipoOperacion.includes("Sell ETH")) return "badge-eth-sell";
+    if (tipoOperacion.includes("Buy ETH")) return "badge-eth-buy";
+    if (tipoOperacion.includes("Sell BTC")) return "badge-btc-sell";
+    if (tipoOperacion.includes("Buy BTC")) return "badge-btc-buy";
+    return "";
   }
-}
 
-function mostrarConfirmacion(mensaje, onConfirm, onCancel) {
-  const overlay = document.createElement('div');
-  overlay.id = 'confirmModal';
-  overlay.style.cssText = `
+  function showAlert(type, message) {
+    // Usar cache DOM
+    let alertEl, msgEl;
+
+    if (type === "success") {
+      alertEl = DOM.alertSuccess;
+      msgEl = DOM.alertSuccessMsg;
+    } else if (type === "info") {
+      alertEl = DOM.alertInfo;
+      msgEl = DOM.alertInfoMsg;
+    } else {
+      alertEl = DOM.alertError;
+      msgEl = DOM.alertErrorMsg;
+    }
+
+    if (!alertEl)
+      alertEl = document.getElementById(
+        type === "success"
+          ? "alertSuccess"
+          : type === "info"
+            ? "alertInfo"
+            : "alertError",
+      );
+    if (!msgEl)
+      msgEl = document.getElementById(
+        type === "success"
+          ? "alertSuccessMsg"
+          : type === "info"
+            ? "alertInfoMsg"
+            : "alertErrorMsg",
+      );
+
+    if (msgEl) msgEl.textContent = message;
+    if (alertEl) alertEl.classList.add("show");
+
+    setTimeout(() => {
+      if (alertEl) alertEl.classList.remove("show");
+    }, 5000);
+  }
+
+  function showLoading(elementId, show) {
+    const element = document.getElementById(elementId);
+    if (element) {
+      element.classList.toggle("show", show);
+    }
+  }
+
+  function mostrarConfirmacion(mensaje, onConfirm, onCancel) {
+    const overlay = document.createElement("div");
+    overlay.id = "confirmModal";
+    overlay.style.cssText = `
     position:fixed;top:0;left:0;right:0;bottom:0;
     background:rgba(0,0,0,0.85);display:flex;align-items:center;
     justify-content:center;z-index:9999;padding:20px;
     backdrop-filter:blur(16px);animation:fadeIn 0.2s ease;
   `;
 
-  overlay.innerHTML = `
+    overlay.innerHTML = `
     <div class="edit-modal-content" style="max-width:380px; text-align:center; box-shadow: 0 24px 60px rgba(0,0,0,0.8), 0 0 30px rgba(0, 212, 255, 0.15);">
       <div class="edit-modal-header" style="justify-content:center; border-bottom:none; flex-direction:column; gap:16px; padding-bottom:10px;">
         <div class="edit-modal-icon" style="background:rgba(0, 212, 255, 0.1); color:var(--primary); font-size:1.6rem; width:56px; height:56px;">?</div>
@@ -1384,34 +1777,42 @@ function mostrarConfirmacion(mensaje, onConfirm, onCancel) {
     </div>
   `;
 
-  document.body.appendChild(overlay);
+    document.body.appendChild(overlay);
 
-  document.getElementById('confirmModalAccept').addEventListener('click', function() {
-    overlay.remove();
-    if (onConfirm) onConfirm();
-  });
+    document
+      .getElementById("confirmModalAccept")
+      .addEventListener("click", function () {
+        overlay.remove();
+        if (onConfirm) onConfirm();
+      });
 
-  document.getElementById('confirmModalCancel').addEventListener('click', function() {
-    overlay.remove();
-    if (onCancel) onCancel();
-  });
+    document
+      .getElementById("confirmModalCancel")
+      .addEventListener("click", function () {
+        overlay.remove();
+        if (onCancel) onCancel();
+      });
 
-  overlay.addEventListener('click', function(e) {
-    if (e.target === overlay) {
-      overlay.remove();
-      if (onCancel) onCancel();
-    }
-  });
-}
+    overlay.addEventListener("click", function (e) {
+      if (e.target === overlay) {
+        overlay.remove();
+        if (onCancel) onCancel();
+      }
+    });
+  }
 
-/** Crea una fila temporal en la tabla de activas mientras se guarda */
-function crearFilaPendiente(datos) {
-  const container = document.getElementById('activasContainer');
-  if (!container) return;
+  /** Crea una fila temporal en la tabla de activas mientras se guarda */
+  function crearFilaPendiente(datos) {
+    const container = document.getElementById("activasContainer");
+    if (!container) return;
 
-  // Si está vacío o tiene skeleton/error, renderizar tabla vacía
-  if (container.querySelector('.empty-state') || container.querySelector('.loading') || container.querySelector('.error-state')) {
-    container.innerHTML = `
+    // Si está vacío o tiene skeleton/error, renderizar tabla vacía
+    if (
+      container.querySelector(".empty-state") ||
+      container.querySelector(".loading") ||
+      container.querySelector(".error-state")
+    ) {
+      container.innerHTML = `
       <div class="table-container">
         <table>
           <thead>
@@ -1431,19 +1832,21 @@ function crearFilaPendiente(datos) {
         </table>
       </div>
     `;
-  }
+    }
 
-  const tbody = container.querySelector('tbody');
-  if (!tbody) return;
+    const tbody = container.querySelector("tbody");
+    if (!tbody) return;
 
-  const fechaInicio     = formatearFecha(datos.fechaInicio);
-  const montoFormateado = formatearMonto(datos.monto, datos.moneda);
-  const badgeClass      = getBadgeClass(datos.tipoOperacion);
-  const monedaKey       = String(datos.moneda).toLowerCase().replace(/[^a-z]/g, '');
+    const fechaInicio = formatearFecha(datos.fechaInicio);
+    const montoFormateado = formatearMonto(datos.monto, datos.moneda);
+    const badgeClass = getBadgeClass(datos.tipoOperacion);
+    const monedaKey = String(datos.moneda)
+      .toLowerCase()
+      .replace(/[^a-z]/g, "");
 
-  const row = document.createElement('tr');
-  row.className = 'operacion-row row-pending';
-  row.innerHTML = `
+    const row = document.createElement("tr");
+    row.className = "operacion-row row-pending";
+    row.innerHTML = `
     <td class="td-nowrap">
       <div style="margin-bottom:2px;">${fechaInicio}</div>
       <div class="badge-duration">Procesando...</div>
@@ -1465,49 +1868,49 @@ function crearFilaPendiente(datos) {
     <td></td>
   `;
 
-  tbody.prepend(row);
-  
-  // Scrollear a la tabla para ver el feedback
-  container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-}
+    tbody.prepend(row);
 
-/** Efecto de partículas al eliminar - limitado a la fila */
-function shatterElement(el) {
-  const rect = el.getBoundingClientRect();
-  const width = rect.width;
-  const height = rect.height;
-  const top = rect.top;
-  const left = rect.left;
-  
-  // Crear partículas solo dentro del área de la fila
-  for (let i = 0; i < 25; i++) {
-    const shard = document.createElement('div');
-    shard.className = 'shatter-fragment';
-    
-    // Partículas pequeñas dentro de la fila
-    const size = Math.random() * 10 + 4;
-    const posX = left + (Math.random() * width);
-    const posY = top + (Math.random() * height);
-    
-    shard.style.width = size + 'px';
-    shard.style.height = size + 'px';
-    shard.style.left = posX + 'px';
-    shard.style.top = posY + 'px';
-    shard.style.borderRadius = '50%';
-    
-    // Dispersión contenida solo dentro del área de la fila
-    const dx = (Math.random() - 0.5) * width * 0.5;
-    const dy = (Math.random() - 0.5) * height * 0.3;
-    const scale = Math.random() * 0.3 + 0.1;
-    const delay = Math.random() * 0.15;
-    
-    shard.style.setProperty('--dx', dx + 'px');
-    shard.style.setProperty('--dy', dy + 'px');
-    shard.style.setProperty('--scale', scale);
-    shard.style.animationDelay = delay + 's';
-    
-    document.body.appendChild(shard);
-    setTimeout(() => shard.remove(), 1200);
+    // Scrollear a la tabla para ver el feedback
+    container.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
-}
+
+  /** Efecto de partículas al eliminar - limitado a la fila */
+  function shatterElement(el) {
+    const rect = el.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+    const top = rect.top;
+    const left = rect.left;
+
+    // Crear partículas solo dentro del área de la fila
+    for (let i = 0; i < 25; i++) {
+      const shard = document.createElement("div");
+      shard.className = "shatter-fragment";
+
+      // Partículas pequeñas dentro de la fila
+      const size = Math.random() * 10 + 4;
+      const posX = left + Math.random() * width;
+      const posY = top + Math.random() * height;
+
+      shard.style.width = size + "px";
+      shard.style.height = size + "px";
+      shard.style.left = posX + "px";
+      shard.style.top = posY + "px";
+      shard.style.borderRadius = "50%";
+
+      // Dispersión contenida solo dentro del área de la fila
+      const dx = (Math.random() - 0.5) * width * 0.5;
+      const dy = (Math.random() - 0.5) * height * 0.3;
+      const scale = Math.random() * 0.3 + 0.1;
+      const delay = Math.random() * 0.15;
+
+      shard.style.setProperty("--dx", dx + "px");
+      shard.style.setProperty("--dy", dy + "px");
+      shard.style.setProperty("--scale", scale);
+      shard.style.animationDelay = delay + "s";
+
+      document.body.appendChild(shard);
+      setTimeout(() => shard.remove(), 1200);
+    }
+  }
 </script>
