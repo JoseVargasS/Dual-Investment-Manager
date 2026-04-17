@@ -1471,7 +1471,7 @@ function crearFilaPendiente(datos) {
   container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-/** Efecto de explosión de cristales al eliminar */
+/** Efecto de partículas al eliminar - limitado a la fila */
 function shatterElement(el) {
   const rect = el.getBoundingClientRect();
   const width = rect.width;
@@ -1479,37 +1479,35 @@ function shatterElement(el) {
   const top = rect.top;
   const left = rect.left;
   
-  // Crear unos 250 fragmentos muy pequeñitos
-  for (let i = 0; i < 250; i++) {
+  // Crear partículas solo dentro del área de la fila
+  for (let i = 0; i < 25; i++) {
     const shard = document.createElement('div');
     shard.className = 'shatter-fragment';
     
-    // Tamaños mucho más pequeños
-    const sw = Math.random() * 12 + 2;
-    const sh = Math.random() * 12 + 2;
+    // Partículas pequeñas dentro de la fila
+    const size = Math.random() * 10 + 4;
+    const posX = left + (Math.random() * width);
+    const posY = top + (Math.random() * height);
     
-    shard.style.width = sw + 'px';
-    shard.style.height = sh + 'px';
-    shard.style.top = (top + Math.random() * height) + 'px';
-    shard.style.left = (left + Math.random() * width) + 'px';
+    shard.style.width = size + 'px';
+    shard.style.height = size + 'px';
+    shard.style.left = posX + 'px';
+    shard.style.top = posY + 'px';
+    shard.style.borderRadius = '50%';
     
-    // Formas de cristal poligonales ultra-aleatorias
-    const p1 = Math.random() * 50;
-    const p2 = 50 + Math.random() * 50;
-    shard.style.clipPath = `polygon(${p1}% 0%, ${p2}% 0%, 100% 100%, 0% 100%)`;
-    
-    // Dispersión contenida al área de la fila
-    const dx = (Math.random() - 0.5) * (width * 0.8);
-    const dy = (Math.random() - 0.5) * (height * 1.5);
-    const dr = (Math.random() - 0.5) * 1800;
+    // Dispersión contenida solo dentro del área de la fila
+    const dx = (Math.random() - 0.5) * width * 0.5;
+    const dy = (Math.random() - 0.5) * height * 0.3;
+    const scale = Math.random() * 0.3 + 0.1;
+    const delay = Math.random() * 0.15;
     
     shard.style.setProperty('--dx', dx + 'px');
     shard.style.setProperty('--dy', dy + 'px');
-    shard.style.setProperty('--dr', dr + 'deg');
+    shard.style.setProperty('--scale', scale);
+    shard.style.animationDelay = delay + 's';
     
     document.body.appendChild(shard);
-    // Sync con los 2.5s de la animación de Styles.html
-    setTimeout(() => shard.remove(), 2600);
+    setTimeout(() => shard.remove(), 1200);
   }
 }
 </script>
