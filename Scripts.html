@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   setFechaHoraActual();
   cargarCEXSelect();
+  establecerOtrosPredeterminados();
 
   document.getElementById('formOperacion').addEventListener('submit', guardarOperacion);
 
@@ -63,7 +64,9 @@ document.addEventListener('DOMContentLoaded', function() {
 function setFechaHoraActual() {
   try {
     const ahora = new Date();
-    ahora.setMinutes(0, 0, 0);
+    // Forzar AM por defecto (4:00 AM)
+    ahora.setHours(4, 0, 0, 0);
+    
     // Ajuste de zona horaria para el input datetime-local
     const offset = ahora.getTimezoneOffset() * 60000;
     const local = new Date(ahora.getTime() - offset);
@@ -85,8 +88,22 @@ function cargarCEXSelect() {
       option.textContent = cex;
       select.appendChild(option);
     });
+    // Predeterminado OKX
+    select.value = 'OKX';
   } catch (e) {
     console.error('Error al cargar CEX:', e);
+  }
+}
+
+function establecerOtrosPredeterminados() {
+  try {
+    const monedaSelect = document.getElementById('moneda');
+    const tipoSelect = document.getElementById('tipoOperacion');
+    
+    if (monedaSelect) monedaSelect.value = 'USDT';
+    if (tipoSelect)   tipoSelect.value = 'Buy ETH low';
+  } catch (e) {
+    console.error('Error al establecer otros predeterminados:', e);
   }
 }
 
@@ -138,12 +155,17 @@ function guardarOperacion(e) {
       return;
     }
 
+    if (!window.editandoFila) {
+      crearFilaPendiente(datos);
+      document.getElementById('formOperacion').reset();
+      setFechaHoraActual();
+    }
+
     const successHandler = function(response) {
       showLoading('formLoading', false);
       console.log('Respuesta servidor:', response);
       if (response && response.success) {
         showAlert('success', window.editandoFila ? 'Operación actualizada correctamente' : 'Operación guardada correctamente');
-        document.getElementById('formOperacion').reset();
         
         if (window.editandoFila) {
            const submitBtn = document.querySelector('#formOperacion button[type="submit"]');
@@ -154,13 +176,15 @@ function guardarOperacion(e) {
            if (btnCancel) btnCancel.style.display = 'none';
            
            window.editandoFila = null;
+           document.getElementById('formOperacion').reset();
+           setFechaHoraActual();
         }
         
-        setFechaHoraActual();
         cargarOperaciones(true); 
         cargarResumen();
       } else {
         showAlert('error', extraerMensaje(response, 'Error en el servidor'));
+        cargarOperaciones(true); // Recargar por si acaso para quitar la fila pendiente
       }
     };
 
@@ -168,6 +192,7 @@ function guardarOperacion(e) {
       showLoading('formLoading', false);
       console.error('Error de servidor:', error);
       showAlert('error', 'Error: ' + extraerMensaje(error, 'Error desconocido'));
+      cargarOperaciones(true); // Recargar
     };
 
     if (window.editandoFila) {
@@ -212,7 +237,7 @@ function cargarOperaciones(silencioso = false) {
       </div>
     `;
     if (activasCont) activasCont.innerHTML = skeletonTable(9);
-    if (historialCont) historialCont.innerHTML = skeletonTable(12);
+    if (historialCont) historialCont.innerHTML = skeletonTable(11);
   }
 
   if (!isGASAvailable()) {
@@ -226,6 +251,17 @@ function cargarOperaciones(silencioso = false) {
         operacionesData = response;
         renderizarActivas(response.activas || []);
         renderizarHistorial(response.completadas || []);
+        
+        // Establecer monto predeterminado desde el último ingreso del historial
+        const completadas = response.completadas || [];
+        if (completadas.length > 0) {
+          const ultima = completadas[completadas.length - 1];
+          const montoInput = document.getElementById('monto');
+          if (montoInput && (!montoInput.value || montoInput.value === '0')) {
+             // Reducir solo al número entero como se solicitó
+             montoInput.value = ultima.final ? Math.floor(parseFloat(ultima.final)) : '';
+          }
+        }
       } else {
         mostrarErrorCarga(extraerMensaje(response, 'Error al cargar operaciones'));
       }
@@ -275,6 +311,8 @@ function renderizarActivas(activas) {
     return;
   }
 
+  let totalSumaCalculada = 0;
+
   let html = `
     <div class="table-container">
       <table>
@@ -283,11 +321,11 @@ function renderizarActivas(activas) {
             <th>Fecha Inicio</th>
             <th>CEX</th>
             <th>Monto</th>
-            <th>Moneda</th>
             <th>% APR</th>
             <th>Tipo operación</th>
             <th>Precio Obj.</th>
             <th>Interés</th>
+            <th>Total calc.</th>
             <th>Acciones</th>
           </tr>
         </thead>
@@ -302,6 +340,12 @@ function renderizarActivas(activas) {
     const monedaKey       = moneda.toLowerCase().replace(/[^a-z]/g, '');
     const interesStr      = formatearInteres(op.interes, moneda);
     
+    const totalNum        = parseFloat(op.total) || 0;
+    totalSumaCalculada   += totalNum;
+    const totalStr        = totalNum > 0
+      ? '$' + totalNum.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : '-';
+
     // Formatear duración: si M > 0 usa dias, si no usa horas de O
     const m = Math.round(parseFloat(String(op.tiempoCex || '0').replace(/[^\d.-]/g, '')) || 0);
     const o = Math.round(parseFloat(String(op.duracion  || '0').replace(/[^\d.-]/g, '')) || 0);
@@ -321,14 +365,19 @@ function renderizarActivas(activas) {
           ${duracionBadge}
         </td>
         <td><strong>${op.cex || '-'}</strong></td>
-        <td class="td-nowrap">${montoFormateado}</td>
-        <td><span class="badge badge-${monedaKey}">${moneda}</span></td>
+        <td class="td-nowrap">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span>${montoFormateado}</span>
+            <span class="badge badge-${monedaKey}">${moneda}</span>
+          </div>
+        </td>
         <td><strong>${op.apr}%</strong></td>
         <td class="td-nowrap">
           <span class="badge ${badgeClass}">${op.tipoOperacion || '-'}</span>
         </td>
         <td>$${formatearNumero(op.precioObjetivo)}</td>
         <td class="success"><strong>${interesStr}</strong></td>
+        <td class="highlight"><strong>${totalStr}</strong></td>
         <td class="td-nowrap">
           <select class="select-moneda-final" onchange="completarOperacion(${op.fila}, this.value, this)" style="margin-bottom:6px; display:block;">
             <option value="">Final...</option>
@@ -349,7 +398,16 @@ function renderizarActivas(activas) {
     `;
   });
 
-  html += '</tbody></table></div>';
+  html += `
+      </tbody>
+      <tfoot>
+        <tr class="table-footer-summary">
+          <td colspan="7" class="summary-label">Total en curso:</td>
+          <td colspan="2" class="summary-value">$${totalSumaCalculada.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>`;
   container.innerHTML = html;
 }
 
@@ -381,7 +439,6 @@ function renderizarHistorial(completadas) {
             <th>Fecha Inicio</th>
             <th>CEX</th>
             <th>Monto</th>
-            <th>Moneda</th>
             <th>% APR</th>
             <th>Tipo op.</th>
             <th>Precio Obj.</th>
@@ -430,8 +487,12 @@ function renderizarHistorial(completadas) {
           ${duracionBadge}
         </td>
         <td><strong>${op.cex || '-'}</strong></td>
-        <td class="td-nowrap">${montoFormateado}</td>
-        <td><span class="badge badge-${monedaKey}">${moneda}</span></td>
+        <td class="td-nowrap">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span>${montoFormateado}</span>
+            <span class="badge badge-${monedaKey}">${moneda}</span>
+          </div>
+        </td>
         <td><strong>${op.apr}%</strong></td>
         <td class="td-nowrap">
           <span class="badge ${badgeClass}">${op.tipoOperacion || '-'}</span>
@@ -481,32 +542,40 @@ function completarOperacion(fila, monedaFinal, selectElement) {
 }
 
 function eliminarOperacionUI(fila) {
-  if (!confirm('¿Estás seguro de que deseas eliminar esta operación de forma permanente?')) return;
-  
-  if (!isGASAvailable()) { showAlert('error', 'No hay conexión'); return; }
-  
-  // Borrado optimista local para feedback instantáneo
-  const opRow = document.querySelector(`.operacion-row[onclick="mostrarDetalle(${fila}, false)"]`);
-  if (opRow) {
-    opRow.style.opacity = '0.5';
-    opRow.style.pointerEvents = 'none';
-  }
+  mostrarConfirmacion('¿Estás seguro de que deseas eliminar esta operación de forma permanente?', function() {
+    if (!isGASAvailable()) { showAlert('error', 'No hay conexión'); return; }
+    
+    // Feedback visual inmediato (Efecto de cristal roto)
+    const opRow = document.querySelector(`.operacion-row[data-fila='${fila}']`);
+    if (opRow) {
+      shatterElement(opRow);
+      // Lo ocultamos inmediatamente para que no se quede "congelado"
+      opRow.style.display = 'none';
+      opRow.classList.add('row-deleting');
+    }
 
-  google.script.run
-    .withSuccessHandler(function(response) {
-      if (response && response.success) {
-        showAlert('success', 'Operación eliminada');
+    google.script.run
+      .withSuccessHandler(function(response) {
+        if (response && response.success) {
+          showAlert('success', 'Operación eliminada');
+          // Actualización silenciosa en segundo plano
+          cargarOperaciones(true);
+          cargarResumen(true);
+        } else {
+          if (opRow) {
+            opRow.style.display = '';
+            opRow.classList.remove('row-deleting');
+          }
+          showAlert('error', extraerMensaje(response, 'Error al eliminar'));
+        }
+      })
+      .withFailureHandler(function(error) {
+        if (opRow) opRow.style.display = '';
+        showAlert('error', extraerMensaje(error, 'Error de conexión'));
         cargarOperaciones(true);
-      } else {
-        if (opRow) { opRow.style.opacity = '1'; opRow.style.pointerEvents = 'auto'; }
-        showAlert('error', extraerMensaje(response, 'Error al eliminar'));
-      }
-    })
-    .withFailureHandler(function(error) {
-      if (opRow) { opRow.style.opacity = '1'; opRow.style.pointerEvents = 'auto'; }
-      showAlert('error', extraerMensaje(error, 'Error de conexión'));
-    })
-    .eliminarOperacionFila(fila);
+      })
+      .eliminarOperacionFila(fila);
+  });
 }
 
 function cargarEdicionOperacion(fila) {
@@ -774,6 +843,7 @@ function renderizarResumen(data) {
           <span class="resumen-value ${cls}"
                 ${isEditable && note ? `data-note="${sanitize(note)}"` : ''}
                 ${isEditable && formula ? `data-formula="${sanitize(formula)}"` : ''}
+                ${isEditable && note ? `onmouseenter="showAppTooltip(this)" onmouseleave="hideAppTooltip()"` : ''}
                 ${isEditable ? `onclick="editarCelda(this, '${celdaRef}', '${sanitize(etiqueta)}')"` : ''}>
             ${sanitize(valor)}
           </span>
@@ -924,226 +994,166 @@ function editarCelda(element, celdaRef, titulo) {
   let addends = []; 
   
   if (formula && formula.includes('+')) {
-    // CASO A: Hay una operación en la celda (Prioridad absoluta)
     const amounts = formula.replace('=', '').split('+').map(s => parseFloat(s.trim()));
-    const rawNotes = nota ? nota.trim().split(/\n|\. (?=[0-9])/) : [];
-    
-    addends = amounts.map((v, i) => {
-      let d = (rawNotes[i] || '').trim().replace(/\.$/, '');
-      if (d.includes(':')) {
-        d = d.split(':')[0].trim();
-      } else {
-        // Quitar el número redundante de la descripción si existe
-        const allNums = d.match(/\d+(?:[.,]\d+)?/g);
-        if (allNums) {
-          let bestN = null;
-          allNums.forEach(n => { if (Math.abs(parseFloat(n.replace(',','.')) - v) < 0.01) bestN = n; });
-          if (bestN) d = d.replace(bestN, '').trim().replace(/^,\s*|,\s*$/g, '').replace(/S\/|\$|[A-Z]{3}/gi, '').trim();
-        }
-      }
-      return { valor: v, desc: d || 'Sin descripción' };
-    });
+    // Split más robusto: por salto de línea o por punto y espacio
+    const rawNotes = nota ? nota.trim().split(/\n|\. /) : [];
+    addends = amounts.map((v, i) => ({ 
+      valor: v, 
+      desc: limpiarDescripcion((rawNotes[i] || '').replace(/\.$/, '')) 
+    }));
   } else if (nota && nota.trim()) {
-    // CASO B: No hay fórmula compleja, parseamos desde la nota (Legacy/Fallback)
-    const rawItems = nota.trim().split(/\n|\. (?=[0-9])/);
+    const rawItems = nota.trim().split(/\n|\. /);
     rawItems.forEach(function(item) {
       item = item.trim().replace(/\.$/, '');
       if (!item) return;
-
-      let val = NaN;
-      let desc = '';
-      
-      if (item.includes(':')) {
-        const parts = item.split(':');
-        const left = parts[0].trim();
-        const right = parts.slice(1).join(':').trim();
-        const numRight = parseFloat(right.replace(/,/g, '.').replace(/[^\d.-]/g, ''));
-        const numLeft = parseFloat(left.replace(/,/g, '.').replace(/[^\d.-]/g, ''));
-        const pureAmountRegex = /^(?:S\/|\$|[A-Z]{2,3})?\s*[\d]+(?:[.,][\d]+)?\s*(?:[A-Z]{2,3})?$/i;
-
-        if (!isNaN(numRight) && pureAmountRegex.test(right)) {
-          val = numRight; desc = left;
-        } else if (!isNaN(numLeft) && pureAmountRegex.test(left)) {
-          val = numLeft; desc = right;
-        } else {
-          val = !isNaN(numRight) ? numRight : numLeft;
-          desc = val === numRight ? left : (val === numLeft ? right : item);
-        }
-      } else {
-        const currencyMatch = item.match(/(?:S\/|\$|[A-Z]{2,3})\s*([\d]+(?:[.,][\d]+)?)/i);
-        if (currencyMatch) {
-          val = parseFloat(currencyMatch[1].replace(',', '.'));
-          desc = item.replace(currencyMatch[0], '').trim().replace(/^,\s*|,\s*$/g, '');
-        } else {
-          const allNums = item.match(/\d+(?:[.,]\d+)?/g);
-          if (allNums && allNums.length > 0) {
-            let bestMatch = allNums[allNums.length - 1];
-            for (let n of allNums) { if (n.includes('.') || n.includes(',') || parseFloat(n) > 50) { bestMatch = n; break; } }
-            val = parseFloat(bestMatch.replace(',', '.'));
-            desc = item.replace(bestMatch, '').trim().replace(/^,\s*|,\s*$/g, '');
-          }
-        }
-      }
-      if (!isNaN(val)) addends.push({ valor: val, desc: desc || 'Sin descripción' });
+      let val = 0; 
+      const currencyMatch = item.match(/(?:S\/|\$|[A-Z]{2,4})?\s*([\d]+(?:[.,][\d]+)?)$/i);
+      if (currencyMatch) val = parseFloat(currencyMatch[1].replace(',', '.'));
+      addends.push({ valor: val, desc: limpiarDescripcion(item) });
     });
   }
 
-  // Si aún no hay addends, usar valor de la celda
   if (addends.length === 0) {
-    const valorActual = element.textContent.trim();
-    const numActual = parseFloat(String(valorActual).replace(/[S\/$,\s]/g, '').replace(',', '.')) || 0;
-    addends = [{ valor: numActual, desc: 'Total' }];
+    const valFinal = parseFloat(element.textContent.replace(/[^\d.-]/g, '')) || 0;
+    addends = [{ valor: valFinal, desc: 'Concepto inicial' }];
   }
 
-  // Calcular total inicial
-  const totalInicial = addends.reduce((s, a) => s + a.valor, 0);
-
-  // Crear overlay modal
   const overlay = document.createElement('div');
   overlay.id = 'editB6Modal';
-  overlay.style.cssText = `
-    position:fixed;top:0;left:0;right:0;bottom:0;
-    background:rgba(0,0,0,0.82);display:flex;align-items:center;
-    justify-content:center;z-index:9999;padding:20px;
-    backdrop-filter:blur(14px);animation:fadeIn 0.2s ease;
-  `;
-
-  // Generar filas de inputs por sumando como tabla (Imagen 2)
-  const inputsHtml = addends.map((a, i) => `
-    <div style="display:flex; border-bottom:1px solid rgba(255,255,255,0.06); align-items:center;">
-      <div style="flex:0 0 100px; padding:12px; border-right:1px solid rgba(255,255,255,0.06);">
-        <input type="number" step="0.01" value="${a.valor.toFixed(2)}"
-               id="editAddendVal_${i}" style="width:100%; background:transparent; border:none; color:var(--text); font-family:var(--font-mono); font-size:1.05rem; outline:none;" />
-      </div>
-      <div style="flex:1; padding:12px; display:flex; align-items:center;">
-        <input type="text" value="${sanitize(a.desc)}" id="editAddendDesc_${i}"
-               style="flex:1; background:transparent; border:none; color:var(--gray-light); font-family:var(--font-main); font-size:0.95rem; outline:none;" placeholder="Añade descripción..." />
-      </div>
-    </div>
-  `).join('');
+  overlay.style.cssText = `position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(14px);animation:fadeIn 0.2s ease;`;
 
   overlay.innerHTML = `
     <div class="edit-modal-content">
       <div class="edit-modal-header">
         <div class="edit-modal-icon">S/</div>
-        <div>
-          <div class="edit-modal-title">Editar ${titulo || 'Monto'}</div>
-        </div>
+        <div class="edit-modal-title">Editar ${sanitize(titulo)}</div>
         <button class="edit-modal-close" onclick="document.getElementById('editB6Modal').remove()">&times;</button>
       </div>
-      <div class="edit-modal-body" style="padding:20px;">
-        <div style="border:1px solid rgba(255,255,255,0.1); border-radius:8px; overflow:hidden; margin-bottom:20px; background:rgba(0,0,0,0.2);">
-          ${inputsHtml}
+      <div class="edit-modal-body" style="padding:24px;">
+        <div id="editItemsContainer" style="border:1px solid rgba(255,255,255,0.1); border-radius:12px; overflow:hidden; background:rgba(0,0,0,0.2); max-height:350px; overflow-y:auto;">
+          <!-- Items renderizados aquí -->
         </div>
-        
-        <div class="edit-formula-total" style="padding:15px; border-top:1px dashed rgba(255, 209, 102, 0.4); margin:0; border-bottom:1px dashed rgba(255, 209, 102, 0.4); background:rgba(255,209,102,0.05);">
-          <span class="edit-formula-total-label">TOTAL CALCULADO:</span>
-          <span class="edit-formula-total-value" id="editTotalCalc">
-            S/ ${totalInicial.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </span>
+        <button class="edit-btn-add-row" id="btnAddEditRow">
+          <span>+</span> Añadir Concepto
+        </button>
+        <div class="edit-formula-total" style="padding:15px; border-top:1px dashed rgba(212, 175, 55, 0.4); background:rgba(212, 175, 55, 0.05); border-radius:8px; margin-top:8px;">
+          <span class="edit-formula-total-label" style="font-size:0.75rem; color:var(--text-muted);">TOTAL CALCULADO:</span>
+          <span class="edit-formula-total-value" id="editTotalCalc" style="color:var(--warning); font-size:1.4rem; font-weight:700;">S/ 0.00</span>
         </div>
       </div>
-      <div class="edit-modal-actions" style="padding-top:0;">
-        <button class="edit-btn-cancel" onclick="document.getElementById('editB6Modal').remove()">
-          Cancelar
-        </button>
-        <button class="edit-btn-confirm" id="editB6Confirm">
-          ✓ Guardar
-        </button>
+      <div class="edit-modal-actions" style="padding:0 24px 24px; display:flex; gap:12px;">
+        <button class="edit-btn-cancel" style="flex:1; padding:14px; border-radius:12px; background:rgba(255,255,255,0.05); color:var(--text); border:1px solid rgba(255,255,255,0.1); cursor:pointer;" onclick="document.getElementById('editB6Modal').remove()">Cancelar</button>
+        <button class="edit-btn-confirm" id="editB6Confirm" style="flex:1.5; padding:14px; border-radius:12px; background:var(--secondary); color:var(--dark); font-weight:700; border:none; cursor:pointer;">✓ Guardar</button>
       </div>
     </div>
   `;
 
   document.body.appendChild(overlay);
 
-  // Actualizar total en tiempo real
+  const container = document.getElementById('editItemsContainer');
   const totalEl = document.getElementById('editTotalCalc');
-  function actualizarTotal() {
+
+  function renderizarItems() {
+    container.innerHTML = addends.map((a, i) => `
+      <div class="edit-item-row" style="display:flex; border-bottom:1px solid rgba(255,255,255,0.06); align-items:center; background: ${i % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent'}">
+        <div style="flex:0 0 110px; padding:14px; border-right:1px solid rgba(255,255,255,0.06);">
+          <input type="number" step="0.01" value="${a.valor}" class="edit-inp-val"
+                 style="width:100%; background:transparent; border:none; color:var(--primary); font-family:var(--font-mono); font-size:1.1rem; outline:none; font-weight:600;" oninput="actualizarTotalDesdeDOM()"/>
+        </div>
+        <div style="flex:1; padding:14px; display:flex; align-items:center; gap:8px;">
+          <input type="text" value="${sanitize(a.desc)}" class="edit-inp-desc"
+                 style="flex:1; background:transparent; border:none; color:var(--gray-light); outline:none; font-size:0.95rem;" placeholder="Descripción..." />
+          <button title="Eliminar" onclick="this.closest('.edit-item-row').remove(); actualizarTotalDesdeDOM();" style="background:rgba(255, 77, 109, 0.1); border:none; color:#ff4d6d; cursor:pointer; font-size:1.1rem; width:28px; height:28px; border-radius:6px;">&times;</button>
+        </div>
+      </div>
+    `).join('');
+    actualizarTotalDesdeDOM();
+  }
+
+  window.actualizarTotalDesdeDOM = function() {
     let sum = 0;
-    for (let i = 0; i < addends.length; i++) {
-      const inp = document.getElementById('editAddendVal_' + i);
-      if (inp) sum += parseFloat(inp.value) || 0;
-    }
+    container.querySelectorAll('.edit-inp-val').forEach(inp => sum += parseFloat(inp.value) || 0);
     totalEl.textContent = 'S/ ' + sum.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    totalEl._sum = sum;
-  }
+    totalEl._sumValue = sum;
+  };
 
-  // Adjuntar listeners a todos los inputs
-  for (let i = 0; i < addends.length; i++) {
-    const inpVal = document.getElementById('editAddendVal_' + i);
-    const inpDesc = document.getElementById('editAddendDesc_' + i);
-    
-    if (inpVal) {
-      inpVal.addEventListener('input', actualizarTotal);
-      inpVal.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') document.getElementById('editB6Confirm').click();
-        if (e.key === 'Escape') overlay.remove();
-      });
-    }
-    if (inpDesc) {
-      inpDesc.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') document.getElementById('editB6Confirm').click();
-        if (e.key === 'Escape') overlay.remove();
-      });
-    }
-  }
-  // Foco en el primer input
-  const firstInput = document.getElementById('editAddendVal_0');
-  if (firstInput) { firstInput.focus(); firstInput.select(); }
+  document.getElementById('btnAddEditRow').onclick = () => {
+    const newRow = document.createElement('div');
+    newRow.className = 'edit-item-row';
+    newRow.style.cssText = 'display:flex; border-bottom:1px solid rgba(255,255,255,0.06); align-items:center;';
+    newRow.innerHTML = `
+        <div style="flex:0 0 110px; padding:14px; border-right:1px solid rgba(255,255,255,0.06);">
+          <input type="number" step="0.01" value="0" class="edit-inp-val"
+                 style="width:100%; background:transparent; border:none; color:var(--primary); font-family:var(--font-mono); font-size:1.1rem; outline:none; font-weight:600;" oninput="actualizarTotalDesdeDOM()"/>
+        </div>
+        <div style="flex:1; padding:14px; display:flex; align-items:center; gap:8px;">
+          <input type="text" value="" class="edit-inp-desc"
+                 style="flex:1; background:transparent; border:none; color:var(--gray-light); outline:none; font-size:0.95rem;" placeholder="Descripción..." />
+          <button title="Eliminar" onclick="this.closest('.edit-item-row').remove(); actualizarTotalDesdeDOM();" style="background:rgba(255, 77, 109, 0.1); border:none; color:#ff4d6d; cursor:pointer; font-size:1.1rem; width:28px; height:28px; border-radius:6px;">&times;</button>
+        </div>
+    `;
+    container.appendChild(newRow);
+    newRow.scrollIntoView({ behavior: 'smooth' });
+    newRow.querySelector('.edit-inp-val').focus();
+  };
 
-  document.getElementById('editB6Confirm').addEventListener('click', function() {
-    let sum = 0;
-    const parts = [];
-    const notes = [];
-    for (let i = 0; i < addends.length; i++) {
-      const inpVal  = document.getElementById('editAddendVal_' + i);
-      const inpDesc = document.getElementById('editAddendDesc_' + i);
-      
-      const v = parseFloat((inpVal ? inpVal.value : '0') || '0');
-      const desc = inpDesc ? inpDesc.value.trim() : '';
-      
-      if (isNaN(v)) { showAlert('error', 'Valor inválido en sumando ' + (i+1)); return; }
-      
-      parts.push(v.toFixed(2));
-      
-      // Guardamos bajo el formato estandarizado "Descripción: S/ Valor" para relectura fácil futura
-      if (desc) {
-        notes.push(desc + ': S/ ' + v.toFixed(2));
-      } else {
-        notes.push(v.toFixed(2));
-      }
-      
-      sum += v;
-    }
-    
-    const formula = '=' + parts.join('+');
-    const newNota = notes.join('. ');
-    overlay.remove();
+  renderizarItems();
 
-    if (!isGASAvailable()) { showAlert('error', 'No se pudo conectar'); return; }
+  document.getElementById('editB6Confirm').onclick = function() {
+    const rows = container.querySelectorAll('.edit-item-row');
+    const finalAddends = Array.from(rows).map(row => {
+      const val = parseFloat(row.querySelector('.edit-inp-val').value) || 0;
+      const desc = row.querySelector('.edit-inp-desc').value.trim();
+      return { valor: val, desc: desc };
+    });
+
+    const sumTotal = finalAddends.reduce((s, a) => s + a.valor, 0);
+    const formulaArr = finalAddends.map(a => a.valor.toFixed(2));
+    const notaArr    = finalAddends.map(a => `${limpiarDescripcion(a.desc)}: S/ ${a.valor.toFixed(2)}`);
     
-    // Llamar actualizarCelda pasando la formula y la nota
+    const nuevaFormula = '=' + formulaArr.join('+');
+    const nuevaNota    = notaArr.join('. ');
+
+    this.disabled = true; this.innerHTML = 'Guardando...';
+
     google.script.run
-      .withSuccessHandler(function(response) {
-        if (response && response.success) {
-          element.textContent = 'S/ ' + sum.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-          // Update the tooltip data immediately
-          element.setAttribute('data-note', newNota.replace(/\. (?=[0-9])/g, '\n').replace(/\.$/, ''));
-          showAlert('success', 'Monto actualizado correctamente');
-          setTimeout(function() { cargarResumen(true); }, 600);
+      .withSuccessHandler(res => {
+        overlay.remove();
+        if (res && res.success) {
+          showAlert('success', 'Actualizado correctamente');
+          cargarResumen(true);
         } else {
-          showAlert('error', extraerMensaje(response, 'Error'));
+          showAlert('error', 'Error al guardar');
         }
       })
-      .withFailureHandler(function(error) {
-        showAlert('error', 'Error: ' + extraerMensaje(error, 'Error desconocido'));
+      .withFailureHandler(() => {
+        overlay.remove();
+        showAlert('error', 'Error de conexión');
       })
-      .actualizarCelda(celdaRef, formula, newNota);
-  });
+      .actualizarCelda(celdaRef, nuevaFormula, nuevaNota);
+  };
 
-  overlay.addEventListener('click', function(e) {
+  overlay.addEventListener('click', (e) => {
     if (e.target === overlay) overlay.remove();
   });
+}
+
+/** Limpia descripciones de colones y montos redundantes para evitar duplicación */
+function limpiarDescripcion(str) {
+  if (!str) return '';
+  let clean = str.trim();
+  // Regex para detectar ": S/ 123.45" o ": 123.45" al final
+  // Cubre formatos: ": S/ 10", ": $10", ": 10", " S/ 10", ": USDT 10"
+  const tailRegex = /[:\s]+(?:S\/|\$|[A-Z]{3,4})?\s*[\d]+(?:[.,][\d]+)?$/i;
+  
+  // Limpieza recursiva: mientras encuentre una "cola" de monto, la quita
+  let previous;
+  do {
+    previous = clean;
+    clean = clean.replace(tailRegex, '').trim();
+  } while (clean !== previous);
+  
+  return clean || 'Sin descripción';
 }
 
 // ============================================
@@ -1173,6 +1183,35 @@ function sanitize(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+/** Sistema de Tooltip Robusto */
+function showAppTooltip(element) {
+  const note = element.getAttribute('data-note');
+  if (!note) return;
+  
+  let tooltip = document.getElementById('app-tooltip');
+  if (!tooltip) {
+    tooltip = document.createElement('div');
+    tooltip.id = 'app-tooltip';
+    document.body.appendChild(tooltip);
+  }
+  
+  tooltip.textContent = note;
+  tooltip.style.display = 'block';
+  tooltip.style.opacity = '0';
+  
+  // Timeout para asegurar que el DOM ha actualizado el contenido antes de animar
+  setTimeout(() => {
+    tooltip.style.opacity = '1';
+  }, 10);
+}
+
+function hideAppTooltip() {
+  const tooltip = document.getElementById('app-tooltip');
+  if (tooltip) {
+    tooltip.style.display = 'none';
+  }
 }
 
 /** Actualiza el badge contador de una sección */
@@ -1318,5 +1357,114 @@ function mostrarConfirmacion(mensaje, onConfirm, onCancel) {
       if (onCancel) onCancel();
     }
   });
+}
+
+/** Crea una fila temporal en la tabla de activas mientras se guarda */
+function crearFilaPendiente(datos) {
+  const container = document.getElementById('activasContainer');
+  if (!container) return;
+
+  // Si está vacío o tiene skeleton/error, renderizar tabla vacía
+  if (container.querySelector('.empty-state') || container.querySelector('.loading') || container.querySelector('.error-state')) {
+    container.innerHTML = `
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha Inicio</th>
+              <th>CEX</th>
+              <th>Monto</th>
+              <th>% APR</th>
+              <th>Tipo operación</th>
+              <th>Precio Obj.</th>
+              <th>Interés</th>
+              <th>Total calc.</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  const tbody = container.querySelector('tbody');
+  if (!tbody) return;
+
+  const fechaInicio     = formatearFecha(datos.fechaInicio);
+  const montoFormateado = formatearMonto(datos.monto, datos.moneda);
+  const badgeClass      = getBadgeClass(datos.tipoOperacion);
+  const monedaKey       = String(datos.moneda).toLowerCase().replace(/[^a-z]/g, '');
+
+  const row = document.createElement('tr');
+  row.className = 'operacion-row row-pending';
+  row.innerHTML = `
+    <td class="td-nowrap">
+      <div style="margin-bottom:2px;">${fechaInicio}</div>
+      <div class="badge-duration">Procesando...</div>
+    </td>
+    <td><strong>${datos.cex}</strong></td>
+    <td class="td-nowrap">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span>${montoFormateado}</span>
+        <span class="badge badge-${monedaKey}">${datos.moneda}</span>
+      </div>
+    </td>
+    <td><strong>${datos.apr}%</strong></td>
+    <td class="td-nowrap">
+      <span class="badge ${badgeClass}">${datos.tipoOperacion}</span>
+    </td>
+    <td>$${formatearNumero(datos.precioObjetivo)}</td>
+    <td><div class="skeleton" style="width:60px; height:18px;"></div></td>
+    <td><div class="skeleton" style="width:60px; height:18px;"></div></td>
+    <td></td>
+  `;
+
+  tbody.prepend(row);
+  
+  // Scrollear a la tabla para ver el feedback
+  container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+/** Efecto de explosión de cristales al eliminar */
+function shatterElement(el) {
+  const rect = el.getBoundingClientRect();
+  const width = rect.width;
+  const height = rect.height;
+  const top = rect.top;
+  const left = rect.left;
+  
+  // Crear unos 250 fragmentos muy pequeñitos
+  for (let i = 0; i < 250; i++) {
+    const shard = document.createElement('div');
+    shard.className = 'shatter-fragment';
+    
+    // Tamaños mucho más pequeños
+    const sw = Math.random() * 12 + 2;
+    const sh = Math.random() * 12 + 2;
+    
+    shard.style.width = sw + 'px';
+    shard.style.height = sh + 'px';
+    shard.style.top = (top + Math.random() * height) + 'px';
+    shard.style.left = (left + Math.random() * width) + 'px';
+    
+    // Formas de cristal poligonales ultra-aleatorias
+    const p1 = Math.random() * 50;
+    const p2 = 50 + Math.random() * 50;
+    shard.style.clipPath = `polygon(${p1}% 0%, ${p2}% 0%, 100% 100%, 0% 100%)`;
+    
+    // Dispersión contenida al área de la fila
+    const dx = (Math.random() - 0.5) * (width * 0.8);
+    const dy = (Math.random() - 0.5) * (height * 1.5);
+    const dr = (Math.random() - 0.5) * 1800;
+    
+    shard.style.setProperty('--dx', dx + 'px');
+    shard.style.setProperty('--dy', dy + 'px');
+    shard.style.setProperty('--dr', dr + 'deg');
+    
+    document.body.appendChild(shard);
+    // Sync con los 2.5s de la animación de Styles.html
+    setTimeout(() => shard.remove(), 2600);
+  }
 }
 </script>

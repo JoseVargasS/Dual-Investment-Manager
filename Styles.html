@@ -751,25 +751,6 @@
     box-shadow: 0 0 12px rgba(255, 209, 102, 0.15);
   }
 
-  .resumen-value.editable:hover::after {
-    content: attr(data-note);
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    background: var(--dark-3);
-    border: 1px solid var(--card-border-hover);
-    color: var(--text);
-    padding: 8px 12px;
-    border-radius: 8px;
-    font-size: 0.75rem;
-    white-space: nowrap;
-    z-index: 10;
-    margin-bottom: 8px;
-    font-family: var(--font-main);
-    box-shadow: var(--shadow);
-  }
-
   .resumen-value.highlight {
     color: var(--primary);
     font-size: 1rem;
@@ -1033,28 +1014,70 @@
   /* ==============================
      TOOLTIP NOTA MEJORADO
   ============================== */
-  .resumen-value.editable:hover::after {
-    content: attr(data-note);
+  /* Tooltip JS-based Style */
+  #app-tooltip {
+    display: none;
     position: fixed;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background: var(--dark-3);
-    border: 1px solid var(--card-border-hover);
+    background: #0d111a;
+    border: 1px solid rgba(0, 212, 255, 0.4);
     color: var(--gray-light);
-    padding: 16px 20px;
-    border-radius: 14px;
-    font-size: 0.82rem;
+    padding: 24px 30px;
+    border-radius: 20px;
+    font-size: 0.9rem;
     white-space: pre-line;
-    max-width: none;
-    width: max-content;
-    z-index: 500;
-    margin-bottom: 0;
+    width: 440px;
+    max-width: 90vw;
+    max-height: 80vh;
+    overflow-y: auto;
+    z-index: 100000;
     font-family: var(--font-main);
-    box-shadow: 0 24px 60px rgba(0,0,0,0.7), 0 0 30px rgba(0, 212, 255, 0.1);
+    box-shadow: 0 50px 120px rgba(0,0,0,0.95), 0 0 50px rgba(0, 212, 255, 0.25);
     line-height: 1.7;
     text-align: left;
-    word-break: break-word;
+    pointer-events: none;
+    border-left: 6px solid var(--primary);
+    box-sizing: border-box;
+    transition: opacity 0.2s ease;
+  }
+
+  #app-tooltip::-webkit-scrollbar {
+    width: 8px;
+  }
+  #app-tooltip::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 0 10px 10px 0;
+  }
+  #app-tooltip::-webkit-scrollbar-thumb {
+    background: rgba(0, 212, 255, 0.2);
+    border-radius: 10px;
+  }
+
+  /* Botón añadir en modal */
+  .edit-btn-add-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: calc(100% - 32px);
+    margin: 10px 16px 20px;
+    padding: 12px;
+    background: rgba(0, 212, 255, 0.05);
+    border: 1px dashed rgba(0, 212, 255, 0.3);
+    border-radius: 12px;
+    color: var(--primary);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .edit-btn-add-row:hover {
+    background: rgba(0, 212, 255, 0.1);
+    border-color: var(--primary);
+    transform: translateY(-1px);
   }
 
   /* ==============================
@@ -1409,6 +1432,91 @@
   .skeleton-text { height: 1em; width: 100%; border-radius: 4px; }
   .skeleton-badge { height: 24px; width: 80px; border-radius: 50px; }
   .skeleton-card { height: 160px; width: 100%; border-radius: 20px; }
+
+  /* ==============================
+     PENDING & DELETING ANIMATIONS
+  ============================== */
+  .row-pending {
+    opacity: 0.7;
+    position: relative;
+    pointer-events: none;
+  }
+  
+  .row-pending td {
+    background: rgba(0, 212, 255, 0.03) !important;
+  }
+
+  .row-pending::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.15), transparent);
+    background-size: 200% 100%;
+    animation: skeleton-pulse 1.5s infinite linear;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .row-deleting {
+    pointer-events: none;
+    opacity: 0.1;
+    filter: blur(4px);
+    transition: all 0.3s ease;
+  }
+
+  /* ==============================
+     SHATTERED GLASS EFFECT
+  ============================== */
+  .shatter-fragment {
+    position: fixed;
+    pointer-events: none;
+    z-index: 9999;
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 0 15px rgba(0, 212, 255, 0.4);
+    will-change: transform, opacity;
+    animation: shatterDispersal 2.5s cubic-bezier(0.1, 0.4, 0.1, 1) forwards;
+  }
+
+  @keyframes shatterDispersal {
+    0% {
+      transform: translate(0, 0) rotate(0deg) scale(1);
+      opacity: 1;
+    }
+    100% {
+      transform: translate(var(--dx), var(--dy)) rotate(var(--dr)) scale(0);
+      opacity: 0;
+    }
+  }
+
+  /* ==============================
+     SUMMARY FOOTER
+  ============================== */
+  .table-footer-summary {
+    background: rgba(0, 212, 255, 0.05);
+    border-top: 2px solid rgba(0, 212, 255, 0.15);
+  }
+
+  .table-footer-summary td {
+    padding: 16px 12px;
+    font-weight: 700;
+  }
+
+  .summary-label {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-family: var(--font-mono);
+    text-align: right;
+  }
+
+  .summary-value {
+    color: var(--primary);
+    font-size: 1.05rem;
+    font-family: var(--font-mono);
+  }
 
   /* Ajustes de optimización extra */
   .modal-overlay {
