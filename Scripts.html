@@ -156,15 +156,35 @@
   // ============================================
   function setFechaHoraActual() {
     try {
+      // Create date in UTC to avoid timezone issues
       const ahora = new Date();
-      ahora.setHours(4, 0, 0, 0);
+      // Set to 4:00 AM in UTC
+      const fechaUTC = new Date(
+        Date.UTC(
+          ahora.getUTCFullYear(),
+          ahora.getUTCMonth(),
+          ahora.getUTCDate(),
+          4,
+          0,
+          0,
+          0,
+        ),
+      );
 
-      const offset = ahora.getTimezoneOffset() * 60000;
-      const local = new Date(ahora.getTime() - offset);
-      // Using cached DOM element
-      DOM.fechaInicio.value = local.toISOString().slice(0, 16);
+      // Format as YYYY-MM-DDTHH:mm for datetime-local input
+      const year = fechaUTC.getUTCFullYear();
+      const month = String(fechaUTC.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(fechaUTC.getUTCDate()).padStart(2, "0");
+      const hours = String(fechaUTC.getUTCHours()).padStart(2, "0");
+      const minutes = String(fechaUTC.getUTCMinutes()).padStart(2, "0");
+
+      DOM.fechaInicio.value = `${year}-${month}-${day}T${hours}:${minutes}`;
     } catch (e) {
       console.error("Error al establecer fecha:", e);
+      // Fallback to current time
+      const ahora = new Date();
+      const localISO = ahora.toISOString().slice(0, 16);
+      DOM.fechaInicio.value = localISO;
     }
   }
 
@@ -386,11 +406,11 @@
         return;
       }
 
+      // Solo crear fila pendiente si no estamos editando
+      let pendingRowCreated = false;
       if (!window.editandoFila) {
         crearFilaPendiente(datos);
-        document.getElementById("formOperacion").reset();
-        setFechaHoraActual();
-        clearFormErrors();
+        pendingRowCreated = true;
       }
 
       const successHandler = function (response) {
@@ -1930,10 +1950,11 @@
 
     // Si está vacío o tiene skeleton/error, renderizar tabla vacía
     if (
-      container.querySelector(".empty-state") ||
-      container.querySelector(".loading") ||
-      container.querySelector(".error-state")
+      !container.querySelector(".empty-state") &&
+      !container.querySelector(".loading") &&
+      !container.querySelector(".error-state")
     ) {
+      // Si no hay elementos especiales, crear la tabla
       container.innerHTML = `
       <div class="table-container">
         <table>
