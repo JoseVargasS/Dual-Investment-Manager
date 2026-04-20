@@ -266,9 +266,8 @@
       box-shadow 0.3s ease,
       background 0.3s ease;
     will-change: transform;
-    contain: layout style;
+    contain: style;
     position: relative;
-    overflow: hidden;
   }
 
   .card::before {
@@ -284,6 +283,7 @@
       rgba(0, 255, 148, 0.25),
       transparent
     );
+    z-index: 0;
   }
 
   .card::after {
@@ -299,6 +299,7 @@
       transparent 50%,
       rgba(0, 255, 148, 0.05) 100%
     );
+    z-index: 0;
   }
 
   .card:hover {
@@ -319,44 +320,6 @@
 
   .card:active {
     transform: translateY(0) scale(0.99);
-  }
-
-  .card::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(0, 212, 255, 0.3),
-      transparent
-    );
-  }
-
-  .card::after {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 1px;
-    height: 100%;
-    background: linear-gradient(
-      180deg,
-      rgba(0, 212, 255, 0.3) 0%,
-      transparent 40%,
-      rgba(0, 255, 148, 0.15) 100%
-    );
-  }
-
-  .card:hover {
-    border-color: var(--card-border-hover);
-    background: var(--card-bg-hover);
-    box-shadow:
-      var(--shadow-lg),
-      0 0 40px rgba(0, 212, 255, 0.08);
   }
 
   .card-title {
@@ -409,7 +372,6 @@
   .form-group {
     display: flex;
     flex-direction: column;
-    contain: layout style;
   }
 
   .form-group label {
@@ -665,11 +627,16 @@
   .custom-select-container {
     position: relative;
     width: 100%;
-    z-index: 1;
+    z-index: 10;
   }
 
   .custom-select-container.open {
-    z-index: 2000;
+    z-index: 9999;
+  }
+
+  /* Cuando el dropdown está abierto, la card contenedora debe estar por encima */
+  .card.dropdown-open {
+    z-index: 100;
   }
 
   .custom-select-trigger {
@@ -719,7 +686,7 @@
     top: calc(100% + 6px);
     left: 0;
     right: 0;
-    background: var(--dark-3);
+    background: #0c0c0c;
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-xl);
@@ -729,7 +696,6 @@
     transform: translateY(-10px);
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     overflow: hidden;
-    backdrop-filter: blur(20px);
     pointer-events: none;
   }
 

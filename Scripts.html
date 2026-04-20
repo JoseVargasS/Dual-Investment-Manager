@@ -59,7 +59,9 @@
     DOM.formOperacion.addEventListener("submit", guardarOperacion);
 
     // Limpiar errores al interactuar con los campos
-    DOM.fechaInicio.addEventListener("input", () => clearFieldError("groupFecha"));
+    DOM.fechaInicio.addEventListener("input", () =>
+      clearFieldError("groupFecha"),
+    );
     DOM.cex.addEventListener("change", () => clearFieldError("groupCex"));
     DOM.monto.addEventListener("input", () => clearFieldError("groupMonto"));
     DOM.moneda.addEventListener("change", () => {
@@ -67,8 +69,12 @@
       actualizarStepMonto(DOM.moneda.value);
     });
     DOM.apr.addEventListener("input", () => clearFieldError("groupApr"));
-    DOM.tipoOperacion.addEventListener("change", () => clearFieldError("groupTipo"));
-    DOM.precioObjetivo.addEventListener("input", () => clearFieldError("groupPrecio"));
+    DOM.tipoOperacion.addEventListener("change", () =>
+      clearFieldError("groupTipo"),
+    );
+    DOM.precioObjetivo.addEventListener("input", () =>
+      clearFieldError("groupPrecio"),
+    );
 
     if (DOM.modalDetalle) {
       DOM.modalDetalle.addEventListener("click", function (e) {
@@ -88,6 +94,7 @@
         options?.classList.remove("show");
         trigger?.classList.remove("active");
         container.classList.remove("open");
+        container.closest(".card")?.classList.remove("dropdown-open");
       }
     });
 
@@ -139,7 +146,7 @@
     setupDelegation("historialContainer");
 
     // Agregar event listener para el cambio de moneda
-    DOM.moneda.addEventListener("change", function() {
+    DOM.moneda.addEventListener("change", function () {
       actualizarStepMonto(this.value);
     });
   });
@@ -194,21 +201,22 @@
         customOpt.innerHTML = `<span>${cex}</span>`;
 
         // CORREGIDO: Cambiar onclick por addEventListener y mejorar la lógica
-        customOpt.addEventListener('click', (e) => {
+        customOpt.addEventListener("click", (e) => {
           e.preventDefault();
           e.stopPropagation();
           seleccionarCEX(cex);
-          
+
           // Cerrar el dropdown después de seleccionar
           optionsContainer.classList.remove("show");
           trigger.classList.remove("active");
           container.classList.remove("open");
+          container.closest(".card")?.classList.remove("dropdown-open");
         });
 
         optionsContainer.appendChild(customOpt);
       });
 
-      trigger.addEventListener('click', (e) => {
+      trigger.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
         const isOpen = optionsContainer.classList.contains("show");
@@ -217,6 +225,7 @@
         document.querySelectorAll(".custom-options.show").forEach((opt) => {
           opt.classList.remove("show");
           opt.closest(".custom-select-container")?.classList.remove("open");
+          opt.closest(".card")?.classList.remove("dropdown-open");
         });
         document
           .querySelectorAll(".custom-select-trigger.active")
@@ -228,11 +237,13 @@
           optionsContainer.classList.add("show");
           trigger.classList.add("active");
           container.classList.add("open");
+          container.closest(".card")?.classList.add("dropdown-open");
         } else {
           // Si ya está abierto, lo cerramos
           optionsContainer.classList.remove("show");
           trigger.classList.remove("active");
           container.classList.remove("open");
+          container.closest(".card")?.classList.remove("dropdown-open");
         }
       });
 
@@ -269,7 +280,7 @@
       // Using cached DOM elements
       DOM.moneda.value = "USDT";
       DOM.tipoOperacion.value = "Buy ETH low";
-      
+
       // Establecer el step adecuado según la moneda
       actualizarStepMonto(DOM.moneda.value);
     } catch (e) {
@@ -280,7 +291,7 @@
   // ============================================
   // FUNCIONES ADICIONALES
   // ============================================
-  
+
   // Función para actualizar el atributo step del campo monto según la moneda
   function actualizarStepMonto(moneda) {
     // Using cached DOM element
@@ -504,7 +515,10 @@
             // Establecer monto = final obtenido (con decimales según moneda)
             if (montoInput && ultima.final) {
               const montoValue = parseFloat(ultima.final);
-              if (ultima.monedaFinal === 'ETH' || ultima.monedaFinal === 'BTC') {
+              if (
+                ultima.monedaFinal === "ETH" ||
+                ultima.monedaFinal === "BTC"
+              ) {
                 // 6 decimales para ETH y BTC
                 montoInput.value = montoValue.toFixed(6);
               } else {
@@ -516,7 +530,7 @@
             // Establecer moneda = moneda final del ultimo ingreso
             if (monedaSelect && ultima.monedaFinal) {
               monedaSelect.value = ultima.monedaFinal;
-              
+
               // Actualizar el step del monto según la moneda
               actualizarStepMonto(ultima.monedaFinal);
             }
