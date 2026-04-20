@@ -10,42 +10,67 @@ const SPREADSHEET_ID = "1g9JBdaZ7eAAhaEjUf5pQs2YEzKAR2QYANXAJHMz0oJc";
 const SHEET_NAME = "PRESTAMO";
 
 // Los datos individuales empiezan en fila 20
-// (filas 16-17: sección/encabezados, filas 16-19: filas fusionadas con totales)
 const FIRST_DATA_ROW = 20;
 
-// Columnas (1-indexado) - estructura REAL de la hoja:
+// Columnas (1-indexado)
 // E=FECHA INICIO, F=FECHA FIN, G=CEX, H=MONTO, I=MONEDA
 // J=%APR, K=TIPO, L=PRECIO OBJ.
-// M=TIEMPO EN CEX, N=Tiempo(días), O=interés(no usado)
-// P=total(no usado), Q=FINAL OBTENIDO (valor numérico)
-// R=INTERÉS, S=TOTAL, T=no usado
-// U=MONEDA FINAL (para completar la operación)
-// V=APR ACUMULADO, W=APR EFECTIVO DIARIO
-const COL_E = 5; // FECHA INICIO
-const COL_F = 6; // FECHA FIN
-const COL_G = 7; // CEX
-const COL_H = 8; // MONTO
-const COL_I = 9; // MONEDA
-const COL_J = 10; // %APR
-const COL_K = 11; // TIPO
-const COL_L = 12; // PRECIO OBJ.
-const COL_M = 13; // TIEMPO CEX
-const COL_N = 14; // TIEMPO DIAS
-const COL_O = 15; // DURACION
-const COL_P = 16;
-const COL_Q = 17; // FINAL OBTENIDO
-const COL_R = 18; // INTERES
-const COL_S = 19; // TOTAL
-const COL_T = 20;
-const COL_MONEDA_FINAL = 21; // U (MONEDA FINAL)
-const COL_V = 22; // APR ACUMULADO
-const COL_W = 23; // APR EFECTIVO DIARIO
+// M=TIEMPO CEX, N=TIEMPO DÍAS, O=DURACIÓN
+// Q=FINAL OBTENIDO, R=INTERÉS, S=TOTAL
+// U=MONEDA FINAL, V=APR ACUMULADO, W=APR EFECTIVO DIARIO
+const COL = {
+  FECHA_INICIO: 5,
+  FECHA_FIN: 6,
+  CEX: 7,
+  MONTO: 8,
+  MONEDA: 9,
+  APR: 10,
+  TIPO: 11,
+  PRECIO_OBJ: 12,
+  TIEMPO_CEX: 13,
+  TIEMPO_DIAS: 14,
+  DURACION: 15,
+  FINAL: 17,
+  INTERES: 18,
+  TOTAL: 19,
+  MONEDA_FINAL: 21,
+  APR_ACUM: 22,
+  APR_EFECTIVO: 23,
+};
 
-const NUM_COLS = 19; // Desde E hasta W inclusive (23 - 5 + 1 = 19)
+const NUM_COLS = 19; // Desde E hasta W (23 - 5 + 1)
+const COLS_INPUT = 8; // Columnas E-L (entrada manual)
+
+// ============================================
+// HELPERS DE FECHA
+// ============================================
+// Convierte fecha ISO (from datetime-local input) a Date object
+function parseFechaISO(fechaISO, tz) {
+  const fechaStr = fechaISO.replace("T", " ").substring(0, 16) + ":00";
+  return Utilities.parseDate(fechaStr, tz, "yyyy-MM-dd HH:mm:ss");
+}
+
+// Calcula fecha de fin: día siguiente a las 3:00 AM
+function calcFechaFin(fechaInicio, tz) {
+  const diaStr = Utilities.formatDate(
+    new Date(fechaInicio.getTime() + 86400000),
+    tz,
+    "yyyy-MM-dd",
+  );
+  return Utilities.parseDate(diaStr + " 03:00:00", tz, "yyyy-MM-dd HH:mm:ss");
+}
+
+// Formatea porcentaje (decimal → string con %)
+function fmtPct(raw) {
+  if (typeof raw === "number" && isFinite(raw)) return (raw * 100).toFixed(2);
+  const n = parseFloat(String(raw));
+  return isNaN(n) ? "0.00" : (n * 100).toFixed(2);
+}
 
 // ============================================
 // FUNCIONES DE PLANTILLA
 // ============================================
+// Incluir archivos HTML (Index, Styles, Scripts)
 function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
@@ -53,6 +78,7 @@ function include(filename) {
 // ============================================
 // PUNTO DE ENTRADA WEB
 // ============================================
+// Se ejecuta al abrir la URL de la web app
 function doGet(e) {
   const template = HtmlService.createTemplateFromFile("Index");
   return template
@@ -64,23 +90,22 @@ function doGet(e) {
 
 // ============================================
 // HELPER: Obtener la hoja
-// Intenta getActiveSpreadsheet() primero (bound script),
-// si falla usa openById() como fallback (standalone script).
 // ============================================
+// Retorna {sheet, ss} para operar con la hoja de cálculo
 function getSheet() {
   let ss = null;
-
   try {
     ss = SpreadsheetApp.getActiveSpreadsheet();
   } catch (e) {
     Logger.log("getActiveSpreadsheet falló: " + e);
   }
 
+  // Fallback: abrir por ID (standalone script)
   if (!ss) {
     try {
       ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     } catch (e) {
-      throw new Error("No se pudo acceder a la hoja. Error: " + e.toString());
+      throw new Error("No se pudo acceder a la hoja: " + e.toString());
     }
   }
 
@@ -89,29 +114,29 @@ function getSheet() {
   const sheet = ss.getSheetByName(SHEET_NAME);
   if (!sheet) throw new Error('No se encontró la pestaña "' + SHEET_NAME + '"');
 
-  return { sheet: sheet, ss: ss };
+  return { sheet, ss };
 }
 
 // ============================================
-// HELPER: Serializar un valor de celda para JSON
-// CRÍTICO: Los Date objects hacen que toda la respuesta
-// de google.script.run se vuelva null si no se convierten.
+// HELPER: Serializar valor para JSON
 // ============================================
+// Convierte valores de celda a tipos JSON válidos (Date → string)
 function serCell(val) {
   if (val === null || val === undefined) return null;
   if (val instanceof Date) {
     if (isNaN(val.getTime())) return null;
     try {
       const { ss } = getSheet();
-      const tz = ss.getSpreadsheetTimeZone();
-      return Utilities.formatDate(val, tz, "yyyy-MM-dd HH:mm:ss");
+      return Utilities.formatDate(
+        val,
+        ss.getSpreadsheetTimeZone(),
+        "yyyy-MM-dd HH:mm:ss",
+      );
     } catch (e) {
       return Utilities.formatDate(val, "GMT-5", "yyyy-MM-dd HH:mm:ss");
     }
   }
-  if (typeof val === "number") {
-    return isNaN(val) || !isFinite(val) ? null : val;
-  }
+  if (typeof val === "number") return isNaN(val) || !isFinite(val) ? null : val;
   if (typeof val === "boolean") return val;
   return String(val);
 }
@@ -119,104 +144,53 @@ function serCell(val) {
 // ============================================
 // AGREGAR OPERACIÓN
 // ============================================
+// Crea una nueva fila con los datos de la operación (solo E-L)
+// Las columnas M-W se calculan automáticamente en la hoja
 function agregarOperacion(datos) {
   try {
     const { sheet, ss } = getSheet();
+    const tz = ss.getSpreadsheetTimeZone();
 
     // Buscar primera fila vacía desde FIRST_DATA_ROW
     let nuevaFila = FIRST_DATA_ROW;
     const lastRow = sheet.getLastRow();
     while (nuevaFila <= lastRow) {
-      const val = sheet.getRange(nuevaFila, COL_E).getValue();
+      const val = sheet.getRange(nuevaFila, COL.FECHA_INICIO).getValue();
       if (!val || val.toString().trim() === "") break;
       nuevaFila++;
     }
 
-    const tz = ss.getSpreadsheetTimeZone();
+    // Calcular fechas de inicio y fin
+    const fechaInicio = parseFechaISO(datos.fechaInicio, tz);
+    const fechaFin = calcFechaFin(fechaInicio, tz);
 
-    // Parsear fecha local asegurando timezone de la hoja
-    let fechaStr = datos.fechaInicio;
-    // Si viene de ISOString, reemplaza T y asegura segundos
-    fechaStr = fechaStr.replace("T", " ").substring(0, 16) + ":00"; // "2026-04-13 04:00:00"
-    const fechaInicio = Utilities.parseDate(
-      fechaStr,
-      tz,
-      "yyyy-MM-dd HH:mm:ss",
-    );
-
-    // Fecha de fin: día siguiente a las 3:00 AM en la timezone de la hoja
-    const diaStr = Utilities.formatDate(
-      new Date(fechaInicio.getTime() + 86400000),
-      tz,
-      "yyyy-MM-dd",
-    );
-    const fechaFin = Utilities.parseDate(
-      diaStr + " 03:00:00",
-      tz,
-      "yyyy-MM-dd HH:mm:ss",
-    );
-
-    // Usar batch updates para mejorar el rendimiento
-    const range = sheet.getRange(nuevaFila, COL_E, 1, NUM_COLS);
+    // Datos para columnas E-L (entrada manual del usuario)
     const rowData = [
-      fechaInicio, // E
-      fechaFin, // F
-      datos.cex, // G
-      datos.monto, // H
-      datos.moneda, // I
-      datos.apr / 100, // J
-      datos.tipoOperacion, // K
-      datos.precioObjetivo, // L
-      "", // M - TIEMPO CEX (vacío al inicio)
-      "", // N - TIEMPO DIAS (vacío al inicio)
-      "", // O - DURACION (vacía al inicio)
-      "", // P
-      "", // Q - FINAL OBTENIDO (vacío al inicio)
-      "", // R - INTERES (vacío al inicio)
-      "", // S - TOTAL (vacío al inicio)
-      "", // T (vacío al inicio)
-      "", // U - MONEDA FINAL (vacía al inicio)
-      "", // V - APR ACUMULADO (vacío al inicio)
-      "", // W - APR EFECTIVO DIARIO (vacío al inicio)
+      fechaInicio,
+      fechaFin,
+      datos.cex,
+      datos.monto,
+      datos.moneda,
+      datos.apr / 100, // APR como decimal
+      datos.tipoOperacion,
+      datos.precioObjetivo,
     ];
 
-    // Aplicar todos los formatos en batch antes de setValues
-    const formats = [];
-
-    // Formato para fechas
-    formats.push({
-      range: sheet.getRange(nuevaFila, COL_E),
-      format: "dd/mm/yyyy hh:mm",
-    });
-    formats.push({
-      range: sheet.getRange(nuevaFila, COL_F),
-      format: "dd/mm/yyyy hh:mm",
-    });
-
-    // Formato para APR
-    formats.push({
-      range: sheet.getRange(nuevaFila, COL_J),
-      format: "0.00%",
-    });
-
-    // Formato para monto según moneda
-    let montoFormat = "#,##0.00";
-    if (datos.moneda === "USDT") montoFormat = "$#,##0.00";
-    else if (datos.moneda === "ETH" || datos.moneda === "BTC")
-      montoFormat = "0.000000";
-
-    formats.push({
-      range: sheet.getRange(nuevaFila, COL_H),
-      format: montoFormat,
-    });
-
-    // Aplicar todos los formatos
-    formats.forEach((f) => f.range.setNumberFormat(f.format));
-
-    // Luego establecer los valores
+    // Escribir en la hoja
+    const range = sheet.getRange(nuevaFila, COL.FECHA_INICIO, 1, COLS_INPUT);
     range.setValues([rowData]);
 
-    // No es necesario flush aquí, se hará al final si es necesario
+    // Aplicar formatos
+    sheet
+      .getRange(nuevaFila, COL.FECHA_INICIO)
+      .setNumberFormat("dd/mm/yyyy hh:mm");
+    sheet
+      .getRange(nuevaFila, COL.FECHA_FIN)
+      .setNumberFormat("dd/mm/yyyy hh:mm");
+    sheet.getRange(nuevaFila, COL.APR).setNumberFormat("0.00%");
+
+    const fmtMonto = datos.moneda === "USDT" ? "$#,##0.00" : "0.000000";
+    sheet.getRange(nuevaFila, COL.MONTO).setNumberFormat(fmtMonto);
 
     return {
       success: true,
@@ -224,7 +198,7 @@ function agregarOperacion(datos) {
       fila: nuevaFila,
     };
   } catch (error) {
-    Logger.log("Error en agregarOperacion: " + error.toString());
+    Logger.log("Error en agregarOperacion: " + error);
     return { success: false, message: error.toString() };
   }
 }
@@ -232,6 +206,7 @@ function agregarOperacion(datos) {
 // ============================================
 // OBTENER OPERACIONES
 // ============================================
+// Lee todas las operaciones de la hoja y las separa en activas y completadas
 function obtenerOperaciones() {
   try {
     const { sheet } = getSheet();
@@ -244,55 +219,47 @@ function obtenerOperaciones() {
         FIRST_DATA_ROW,
     );
 
-    if (lastRow < FIRST_DATA_ROW) {
+    if (lastRow < FIRST_DATA_ROW)
       return { success: true, activas: [], completadas: [] };
-    }
 
+    // Leer todas las filas con datos
     const numRows = lastRow - FIRST_DATA_ROW + 1;
     const values = sheet
-      .getRange(FIRST_DATA_ROW, COL_E, numRows, NUM_COLS)
+      .getRange(FIRST_DATA_ROW, COL.FECHA_INICIO, numRows, NUM_COLS)
       .getValues();
 
     const activas = [];
     const completadas = [];
 
+    // Procesar cada fila
     for (let i = 0; i < values.length; i++) {
       const row = values[i];
-
-      // Saltar filas sin fecha de inicio
       const fechaVal = row[0];
       if (!fechaVal || fechaVal.toString().trim() === "") continue;
 
-      // Porcentajes: la hoja los guarda como decimales (0.6372 = 63.72%)
-      function fmtPct(raw) {
-        if (typeof raw === "number" && isFinite(raw))
-          return (raw * 100).toFixed(2);
-        const n = parseFloat(String(raw));
-        return isNaN(n) ? "0.00" : (n * 100).toFixed(2);
-      }
-
+      // Crear objeto operación con los datos de la fila
       const operacion = {
         fila: FIRST_DATA_ROW + i,
-        fechaInicio: serCell(row[0]), // E → ISO string
-        fechaFin: serCell(row[1]), // F → ISO string
-        cex: serCell(row[2]), // G
-        monto: serCell(row[3]), // H
-        moneda: serCell(row[4]), // I  ← siempre string o null
-        apr: fmtPct(row[5]), // J
-        tipoOperacion: serCell(row[6]), // K
-        precioObjetivo: serCell(row[7]), // L
-        tiempoCex: serCell(row[8]), // M
-        tiempoDias: serCell(row[9]), // N
-        duracion: serCell(row[10]), // O - TIEMPO (ej. "23 hours")
-        final: serCell(row[15]), // Q - FINAL OBTENIDO (valor numérico)
-        interes: serCell(row[13]), // R - INTERÉS
-        total: serCell(row[14]), // S - TOTAL
-        monedaFinal: serCell(row[16]), // U - MONEDA FINAL (confirmación)
-        aprAcum: fmtPct(row[17]), // V - APR ACUMULADO
-        aprEfectivo: fmtPct(row[18]), // W - APR EFECTIVO DIARIO
+        fechaInicio: serCell(row[0]),
+        fechaFin: serCell(row[1]),
+        cex: serCell(row[2]),
+        monto: serCell(row[3]),
+        moneda: serCell(row[4]),
+        apr: fmtPct(row[5]),
+        tipoOperacion: serCell(row[6]),
+        precioObjetivo: serCell(row[7]),
+        tiempoCex: serCell(row[8]),
+        tiempoDias: serCell(row[9]),
+        duracion: serCell(row[10]),
+        final: serCell(row[15]), // T - Final obtenido (con símbolo)
+        interes: serCell(row[13]),
+        total: serCell(row[14]),
+        monedaFinal: serCell(row[16]), // U - Moneda final
+        aprAcum: fmtPct(row[17]),
+        aprEfectivo: fmtPct(row[18]),
       };
 
-      // Completada si U (col 21, row[16]) tiene valor
+      // Clasificar: tiene MONEDA_FINAL → completada, si no → activa
       const mf = row[16];
       if (mf !== null && mf !== undefined && mf.toString().trim() !== "") {
         completadas.push(operacion);
@@ -304,158 +271,91 @@ function obtenerOperaciones() {
     Logger.log(
       "Activas: " + activas.length + ", Completadas: " + completadas.length,
     );
-
     return { success: true, activas: activas, completadas: completadas };
   } catch (error) {
-    Logger.log("Error en obtenerOperaciones: " + error.toString());
+    Logger.log("Error en obtenerOperaciones: " + error);
     return { success: false, message: error.toString() };
   }
 }
 
 // ============================================
-// ACCIONES DE ESTADO DE OPERAR (Completar, Eliminar, Actualizar)
+// ELIMINAR OPERACIÓN
 // ============================================
-
+// Elimina la fila de la operación
 function eliminarOperacionFila(fila) {
   try {
     const { sheet } = getSheet();
     sheet.deleteRow(fila);
-    SpreadsheetApp.flush(); // Asegura que se apliquen los cambios
+    SpreadsheetApp.flush();
     return { success: true, message: "Operación eliminada" };
   } catch (error) {
-    Logger.log("Error eliminarOperacionFila: " + error.toString());
+    Logger.log("Error eliminarOperacionFila: " + error);
     return { success: false, message: error.toString() };
   }
 }
 
+// ============================================
+// ACTUALIZAR OPERACIÓN
+// ============================================
+// Actualiza los datos de una operación existente (solo E-L)
 function actualizarOperacionFila(datos) {
   try {
-    const { sheet } = getSheet();
-    const tz = sheet.getParent().getSpreadsheetTimeZone();
+    const { sheet, ss } = getSheet();
+    const tz = ss.getSpreadsheetTimeZone();
 
-    let fechaStr = datos.fechaInicio;
-    fechaStr = fechaStr.replace("T", " ").substring(0, 16) + ":00";
-    const fechaInicio = Utilities.parseDate(
-      fechaStr,
-      tz,
-      "yyyy-MM-dd HH:mm:ss",
-    );
-
-    // Fecha de fin al día siguiente 3 AM
-    const diaStr = Utilities.formatDate(
-      new Date(fechaInicio.getTime() + 86400000),
-      tz,
-      "yyyy-MM-dd",
-    );
-    const fechaFin = Utilities.parseDate(
-      diaStr + " 03:00:00",
-      tz,
-      "yyyy-MM-dd HH:mm:ss",
-    );
+    // Calcular nuevas fechas
+    const fechaInicio = parseFechaISO(datos.fechaInicio, tz);
+    const fechaFin = calcFechaFin(fechaInicio, tz);
 
     const f = datos.fila;
-
-    // Actualizar múltiples celdas a la vez para mejorar el rendimiento
-    const range = sheet.getRange(f, COL_E, 1, 8); // Actualizamos desde E hasta K
     const rowData = [
-      fechaInicio, // E
-      fechaFin, // F
-      datos.cex, // G
-      datos.monto, // H
-      datos.moneda, // I
-      datos.apr / 100, // J
-      datos.tipoOperacion, // K
-      datos.precioObjetivo, // L
+      fechaInicio,
+      fechaFin,
+      datos.cex,
+      datos.monto,
+      datos.moneda,
+      datos.apr / 100,
+      datos.tipoOperacion,
+      datos.precioObjetivo,
     ];
 
+    const range = sheet.getRange(f, COL.FECHA_INICIO, 1, COLS_INPUT);
     range.setValues([rowData]);
 
-    // Aplicar formato a la celda de APR
-    sheet.getRange(f, COL_J).setNumberFormat("0.00%");
+    // Aplicar formatos
+    sheet.getRange(f, COL.APR).setNumberFormat("0.00%");
+    const fmtMonto = datos.moneda === "USDT" ? "$#,##0.00" : "0.000000";
+    sheet.getRange(f, COL.MONTO).setNumberFormat(fmtMonto);
 
-    // Aplicar formato al monto
-    const montoCell = sheet.getRange(f, COL_H);
-    if (datos.moneda === "USDT") montoCell.setNumberFormat("$#,##0.00");
-    else if (datos.moneda === "ETH") montoCell.setNumberFormat("0.000000");
-    else if (datos.moneda === "BTC") montoCell.setNumberFormat("0.000000");
-    else montoCell.setNumberFormat("#,##0.00");
-
-    SpreadsheetApp.flush(); // Asegura que se apliquen los cambios
+    SpreadsheetApp.flush();
     return { success: true, message: "Operación actualizada correctamente" };
   } catch (error) {
-    Logger.log("Error actualizarOperacionFila: " + error.toString());
+    Logger.log("Error actualizarOperacionFila: " + error);
     return { success: false, message: error.toString() };
   }
 }
 
+// ============================================
+// COMPLETAR OPERACIÓN
+// ============================================
+// Marca la operación como completada ingresando la moneda final (columna U)
+// Las columnas M-W se calculan automáticamente en la hoja
 function completarOperacion(fila, monedaFinal) {
   try {
     const { sheet } = getSheet();
-
-    // Actualizar la moneda final
-    sheet.getRange(fila, COL_MONEDA_FINAL).setValue(monedaFinal);
-
-    // Obtener valores de la operación
-    const monto = sheet.getRange(fila, COL_H).getValue();
-    const apr = sheet.getRange(fila, COL_J).getValue(); // Ya es decimal (0.15 = 15%)
-    const fechaInicio = sheet.getRange(fila, COL_E).getValue();
-    const fechaFin = sheet.getRange(fila, COL_F).getValue();
-    const precioObj = sheet.getRange(fila, COL_L).getValue();
-
-    // Calcular duración en días
-    let duracionDias = 1; // Valor por defecto
-    if (
-      fechaInicio &&
-      fechaFin &&
-      fechaInicio instanceof Date &&
-      fechaFin instanceof Date
-    ) {
-      const diffMs = fechaFin.getTime() - fechaInicio.getTime();
-      duracionDias = Math.max(1, diffMs / (1000 * 60 * 60 * 24)); // Al menos 1 día
-    }
-
-    // Calcular interés: monto * apr * (duración en días / 365)
-    // Esto es más preciso: interés anual prorrateado por la duración real
-    const interes = monto * apr * (duracionDias / 365);
-
-    // Calcular total: monto + interés
-    const total = monto + interes;
-
-    // Actualizar interés (R) y total (S)
-    sheet.getRange(fila, COL_R).setValue(interes);
-    sheet.getRange(fila, COL_S).setValue(total);
-
-    // Calcular APR acumulado (mismo que el APR original)
-    const aprAcumulado = apr;
-
-    // Calcular APR efectivo diario: (1 + apr)^(1/365) - 1
-    // Esto es más preciso que simplemente dividir por 365
-    const aprEfectivoDiario = Math.pow(1 + apr, 1 / 365) - 1;
-
-    sheet.getRange(fila, COL_V).setValue(aprAcumulado);
-    sheet.getRange(fila, COL_W).setValue(aprEfectivoDiario);
-
-    // Aplicar formatos
-    sheet.getRange(fila, COL_R).setNumberFormat("$#,##0.00");
-    sheet.getRange(fila, COL_S).setNumberFormat("$#,##0.00");
-    sheet.getRange(fila, COL_V).setNumberFormat("0.00%");
-    sheet.getRange(fila, COL_W).setNumberFormat("0.00%");
-
-    SpreadsheetApp.flush(); // Asegura que se apliquen los cambios
-
+    sheet.getRange(fila, COL.MONEDA_FINAL).setValue(monedaFinal);
+    SpreadsheetApp.flush();
     return { success: true, message: "Operación completada correctamente" };
   } catch (error) {
-    Logger.log("Error en completarOperacion: " + error.toString());
+    Logger.log("Error en completarOperacion: " + error);
     return { success: false, message: error.toString() };
   }
 }
 
 // ============================================
 // OBTENER RESUMEN
-// Usa getDisplayValues() para obtener los valores TAL COMO
-// la hoja los muestra: fechas formateadas, porcentajes con %,
-// moneda con $, solo 2 decimales — sin conversión adicional.
 // ============================================
+// Obtiene los datos de los cuadros de resumen de la hoja
 function obtenerResumen() {
   try {
     const { sheet } = getSheet();
@@ -463,46 +363,42 @@ function obtenerResumen() {
     let cuadro1 = [],
       cuadro2 = [],
       cuadro3 = [];
+    let notaB6 = "",
+      formulaB6 = "",
+      notaB4 = "",
+      formulaB4 = "";
 
-    // 1. Actualizar el dólar antes de leer para que "Objetivos" tenga el valor fresco
+    // Actualizar dólar antes de leer (para valores frescos)
     GetDollarHouse();
     SpreadsheetApp.flush();
 
-    // getDisplayValues() → ya formateados por la hoja (strings siempre, nunca Date)
+    // Obtener valores formateados de cada cuadro
     try {
       cuadro1 = sheet.getRange("A3:B11").getDisplayValues();
     } catch (e) {
       Logger.log("Error A3:B11: " + e);
     }
-
     try {
       cuadro2 = sheet.getRange("E2:F5").getDisplayValues();
     } catch (e) {
       Logger.log("Error E2:F5: " + e);
     }
-
     try {
       cuadro3 = sheet.getRange("E7:F12").getDisplayValues();
     } catch (e) {
       Logger.log("Error E7:F12: " + e);
     }
 
-    let notaB6 = "";
+    // Obtener notas y fórmulas de celdas editables
     try {
       notaB6 = sheet.getRange("B6").getNote() || "";
     } catch (e) {}
-
-    let formulaB6 = "";
     try {
       formulaB6 = sheet.getRange("B6").getFormula() || "";
     } catch (e) {}
-
-    let notaB4 = "";
     try {
       notaB4 = sheet.getRange("B4").getNote() || "";
     } catch (e) {}
-
-    let formulaB4 = "";
     try {
       formulaB4 = sheet.getRange("B4").getFormula() || "";
     } catch (e) {}
@@ -512,109 +408,102 @@ function obtenerResumen() {
         cuadro1.length +
         ", cuadro2=" +
         cuadro2.length +
-        ", cuadro3=" +
+        ", quadro3=" +
         cuadro3.length,
     );
 
     return {
       success: true,
-      cuadro1: cuadro1,
-      cuadro2: cuadro2,
-      cuadro3: cuadro3,
-      notaB6: notaB6,
-      notaB4: notaB4,
-      formulaB6: formulaB6,
-      formulaB4: formulaB4,
+      cuadro1,
+      cuadro2,
+      cuadro3,
+      notaB6,
+      notaB4,
+      formulaB6,
+      formulaB4,
     };
   } catch (error) {
-    Logger.log("Error en obtenerResumen: " + error.toString());
+    Logger.log("Error en obtenerResumen: " + error);
     return { success: false, message: error.toString() };
   }
 }
 
 // ============================================
-// OBTENER TIPO DE CAMBIO (DollarHouse)
+// DOLLARHOUSE
 // ============================================
-function ExtractBetween(text, startStr, endStr) {
-  var startIdx = text.indexOf(startStr);
+// Extrae texto entre dos delimitadores
+function extractBetween(text, startStr, endStr) {
+  const startIdx = text.indexOf(startStr);
   if (startIdx === -1) return null;
-  startIdx += startStr.length;
-  var endIdx = text.indexOf(endStr, startIdx);
-  if (endIdx === -1) return null;
-  return text.substring(startIdx, endIdx).trim();
+  return text
+    .substring(
+      startIdx + startStr.length,
+      text.indexOf(endStr, startIdx + startStr.length),
+    )
+    .trim();
 }
 
-function parseFlexibleNumber(str) {
-  if (!str) return null;
-  const num = parseFloat(str.replace(/[^0-9.]/g, ""));
-  return isNaN(num) ? null : num;
-}
-
+// Obtiene el tipo de cambio del dólar desde DollarHouse
+// Usa caché para evitar solicitudes frecuentes
 function GetDollarHouse() {
   const cache = CacheService.getScriptCache();
   const cached = cache.get("dollar_rate");
-  if (cached) {
-    Logger.log("Usando tasa de cambio desde el caché: " + cached);
-    return parseFloat(cached);
-  }
+  if (cached) return parseFloat(cached); // Retorna caché si existe
 
-  var { sheet } = getSheet();
+  const { sheet } = getSheet();
   if (!sheet) return null;
 
-  var url = "https://app.dollarhouse.pe/";
-  var options = {
-    method: "get",
-    muteHttpExceptions: true,
-    headers: { "User-Agent": "Mozilla/5.0" },
-  };
-
   try {
-    var resp = UrlFetchApp.fetch(url, options);
-    var code = resp.getResponseCode();
-    if (code !== 200) {
+    // Fetch a DollarHouse
+    const resp = UrlFetchApp.fetch("https://app.dollarhouse.pe/", {
+      method: "get",
+      muteHttpExceptions: true,
+      headers: { "User-Agent": "Mozilla/5.0" },
+    });
+    if (resp.getResponseCode() !== 200) {
       sheet.getRange("F2").setValue("N/A");
       return null;
     }
 
-    var html = resp.getContentText();
-    var buy = ExtractBetween(html, 'id="buy-exchange-rate">', "<");
-    var buyNum = buy ? parseFlexibleNumber(buy) : null;
+    const html = resp.getContentText();
+    const buy = extractBetween(html, 'id="buy-exchange-rate">', "<");
+    const buyNum = buy ? parseFloat(buy.replace(/[^0-9.]/g, "")) : null;
 
-    if (buyNum !== null) {
+    if (buyNum && !isNaN(buyNum)) {
       sheet.getRange("F2").setValue(buyNum);
-      cache.put("dollar_rate", buyNum.toString(), 600); // 10 minutos (600 seg)
+      cache.put("dollar_rate", buyNum.toString(), 60); // Caché 1 minuto
       return buyNum;
     } else {
       sheet.getRange("F2").setValue("N/A");
       return null;
     }
   } catch (e) {
-    Logger.log("Error en GetDollarHouse: " + e.toString());
+    Logger.log("Error en GetDollarHouse: " + e);
     return null;
   }
 }
 
+// ============================================
+// ACTUALIZAR CELDA
+// ============================================
+// Actualiza una celda específica con valor o fórmula
 function actualizarCelda(celda, valor, nota) {
   try {
     const { sheet } = getSheet();
     const rango = sheet.getRange(celda || "B6");
-    // Guardar como número o fórmula si empieza con "="
+
+    // Si empieza con "=", guardar como fórmula
     if (typeof valor === "string" && valor.startsWith("=")) {
       rango.setFormula(valor);
     } else {
       const numVal = parseFloat(String(valor).replace(/[$,\s]/g, ""));
       rango.setValue(isNaN(numVal) ? valor : numVal);
     }
-
-    if (nota !== undefined) {
-      rango.setNote(nota);
-    }
-
-    // Forzar recalculo de fórmulas en toda la hoja (en especial Cuadro2: Objetivos)
+    if (nota !== undefined) rango.setNote(nota);
     SpreadsheetApp.flush();
     return { success: true, message: "Valor actualizado" };
   } catch (error) {
-    Logger.log("Error en actualizarCelda: " + error.toString());
+    Logger.log("Error en actualizarCelda: " + error);
     return { success: false, message: error.toString() };
   }
 }

@@ -629,7 +629,7 @@
           <tr>
             <th>Fecha Inicio</th><th>CEX</th><th>Monto</th><th>% APR</th>
             <th>Tipo operación</th><th>Precio Obj.</th><th>Interés</th>
-            <th>Total calc.</th><th>Acciones</th>
+            <th>Total calc.</th><th>APR Acum.</th><th>APR Ef.</th><th>Acciones</th>
           </tr>
         </thead>
         <tbody>
@@ -695,6 +695,8 @@
         <td>$${formatearNumero(op.precioObjetivo)}</td>
         <td class="success"><strong>${interesStr}</strong></td>
         <td class="highlight"><strong>${totalStr}</strong></td>
+        <td>${op.aprAcum || "-"}%</td>
+        <td>${op.aprEfectivo || "-"}%</td>
         <td class="td-nowrap">
           <select class="select-moneda-final" onchange="completarOperacion(${op.fila}, this.value, this)" style="margin-bottom:6px; display:block;">
             <option value="">Final...</option>
@@ -719,7 +721,7 @@
       </tbody>
       <tfoot>
         <tr class="table-footer-summary">
-          <td colspan="7" class="summary-label">Total en curso:</td>
+          <td colspan="9" class="summary-label">Total en curso:</td>
           <td colspan="2" class="summary-value">$${totalSumaCalculada.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
         </tr>
       </tfoot>
@@ -854,12 +856,26 @@
           return;
         }
 
+        // Animación visual antes de recargar
+        const opRow = document.querySelector(`.operacion-row[data-fila='${fila}']`);
+        if (opRow) {
+          opRow.classList.add("row-completing");
+          opRow.style.setProperty("--complete-color", "rgba(0, 255, 148, 0.15)");
+        }
+
         google.script.run
           .withSuccessHandler(function (response) {
             if (response && response.success) {
+              // Animación de éxito
+              if (opRow) {
+                opRow.classList.add("row-complete-success");
+                opRow.style.opacity = "0";
+                opRow.style.transform = "translateX(50px)";
+              }
               showAlert("success", "Operación completada correctamente");
-              cargarOperaciones(true);
+              setTimeout(() => cargarOperaciones(true), 300);
             } else {
+              if (opRow) opRow.classList.remove("row-completing");
               showAlert(
                 "error",
                 extraerMensaje(response, "Error al completar"),
@@ -868,6 +884,7 @@
             }
           })
           .withFailureHandler(function (error) {
+            if (opRow) opRow.classList.remove("row-completing");
             showAlert(
               "error",
               "Error: " + extraerMensaje(error, "Error desconocido"),
@@ -1751,15 +1768,11 @@
         monto === "" ||
         isNaN(Number(monto))
       )
-        return "- " + mon;
-      return (
-        parseFloat(monto).toLocaleString("es-ES", {
-          minimumFractionDigits: 6,
-          maximumFractionDigits: 6,
-        }) +
-        " " +
-        mon
-      );
+        return "-";
+      return parseFloat(monto).toLocaleString("es-ES", {
+        minimumFractionDigits: 6,
+        maximumFractionDigits: 6,
+      });
     }
     return formatearNumero(monto) + " " + mon;
   }
