@@ -71,7 +71,10 @@
       ?.addEventListener("input", () => clearFieldError("groupMonto"));
     document
       .getElementById("moneda")
-      ?.addEventListener("change", () => clearFieldError("groupMoneda"));
+      ?.addEventListener("change", () => {
+        clearFieldError("groupMoneda");
+        actualizarStepMonto(document.getElementById("moneda").value);
+      });
     document
       .getElementById("apr")
       ?.addEventListener("input", () => clearFieldError("groupApr"));
@@ -96,7 +99,9 @@
       const options = document.getElementById("cexOptions");
       const trigger = document.getElementById("cexTrigger");
 
+      // Verificar si el clic fue dentro del contenedor del dropdown
       if (container && !container.contains(e.target)) {
+        // Si el clic fue fuera del contenedor, cerrar el dropdown
         options?.classList.remove("show");
         trigger?.classList.remove("active");
         container.classList.remove("open");
@@ -149,6 +154,11 @@
 
     setupDelegation("activasContainer");
     setupDelegation("historialContainer");
+
+    // Agregar event listener para el cambio de moneda
+    document.getElementById("moneda")?.addEventListener("change", function() {
+      actualizarStepMonto(this.value);
+    });
   });
 
   // ============================================
@@ -202,6 +212,7 @@
 
         // CORREGIDO: Cambiar onclick por addEventListener y mejorar la lógica
         customOpt.addEventListener('click', (e) => {
+          e.preventDefault();
           e.stopPropagation();
           seleccionarCEX(cex);
           
@@ -215,6 +226,7 @@
       });
 
       trigger.addEventListener('click', (e) => {
+        e.preventDefault();
         e.stopPropagation();
         const isOpen = optionsContainer.classList.contains("show");
 
@@ -233,6 +245,11 @@
           optionsContainer.classList.add("show");
           trigger.classList.add("active");
           container.classList.add("open");
+        } else {
+          // Si ya está abierto, lo cerramos
+          optionsContainer.classList.remove("show");
+          trigger.classList.remove("active");
+          container.classList.remove("open");
         }
       });
 
@@ -272,8 +289,27 @@
 
       if (monedaSelect) monedaSelect.value = "USDT";
       if (tipoSelect) tipoSelect.value = "Buy ETH low";
+      
+      // Establecer el step adecuado según la moneda
+      actualizarStepMonto(monedaSelect.value);
     } catch (e) {
       console.error("Error al establecer otros predeterminados:", e);
+    }
+  }
+
+  // ============================================
+  // FUNCIONES ADICIONALES
+  // ============================================
+  
+  // Función para actualizar el atributo step del campo monto según la moneda
+  function actualizarStepMonto(moneda) {
+    const montoInput = DOM.monto || document.getElementById("monto");
+    if (moneda === "ETH") {
+      montoInput.step = "0.000001"; // 6 decimales para ETH
+    } else if (moneda === "BTC") {
+      montoInput.step = "0.000001"; // 6 decimales para BTC
+    } else {
+      montoInput.step = "0.01"; // 2 decimales para USDT u otras monedas
     }
   }
 
@@ -363,6 +399,10 @@
         crearFilaPendiente(datos);
         document.getElementById("formOperacion").reset();
         setFechaHoraActual();
+        
+        // Restaurar el valor predeterminado de step después del reset
+        actualizarStepMonto(document.getElementById("moneda").value);
+        
         clearFormErrors();
       }
 
@@ -390,6 +430,10 @@
             window.editandoFila = null;
             document.getElementById("formOperacion").reset();
             setFechaHoraActual();
+            
+            // Restaurar el valor predeterminado de step después del reset
+            actualizarStepMonto(document.getElementById("moneda").value);
+            
             clearFormErrors();
           }
 
@@ -487,12 +531,22 @@
 
             // Establecer monto = final obtenido (con decimales)
             if (montoInput && ultima.final) {
-              montoInput.value = parseFloat(ultima.final).toString();
+              const montoValue = parseFloat(ultima.final);
+              if (ultima.monedaFinal === 'ETH' || ultima.monedaFinal === 'BTC') {
+                // 6 decimales para ETH y BTC
+                montoInput.value = montoValue.toFixed(6);
+              } else {
+                // 2 decimales para USDT u otras monedas
+                montoInput.value = montoValue.toFixed(2);
+              }
             }
 
             // Establecer moneda = moneda final del ultimo ingreso
             if (monedaSelect && ultima.monedaFinal) {
               monedaSelect.value = ultima.monedaFinal;
+              
+              // Actualizar el step del monto según la moneda
+              actualizarStepMonto(ultima.monedaFinal);
             }
 
             // Auto-seleccionar tipo de operacion basado en la moneda final
@@ -883,6 +937,9 @@
     document.getElementById("monto").value = op.monto || "";
     document.getElementById("moneda").value = op.moneda || "";
 
+    // Actualizar el step del monto según la moneda
+    actualizarStepMonto(op.moneda || "USDT");
+
     document.getElementById("apr").value = op.apr || "";
     document.getElementById("tipoOperacion").value = op.tipoOperacion || "";
     document.getElementById("precioObjetivo").value = op.precioObjetivo || "";
@@ -913,6 +970,9 @@
     document.getElementById("formOperacion").reset();
     seleccionarCEX("OKX"); // Reset custom select
     setFechaHoraActual();
+    
+    // Actualizar el step del monto según la moneda predeterminada
+    actualizarStepMonto("USDT");
 
     const submitBtn = document.querySelector(
       '#formOperacion button[type="submit"]',
