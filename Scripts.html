@@ -35,16 +35,6 @@
   // Lista de CEX disponibles
   const CEX_LIST = ["Binance", "Bybit", "OKX", "Bitget"];
 
-  const CEX_LOGOS = {
-    Binance:
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/1/12/Binance_logo.svg/960px-Binance_logo.svg.png",
-    Bybit:
-      "https://www.thecryptogo.com/wp-content/uploads/2025/01/bybit-logo-dark-300x90.webp",
-    OKX: "https://cexfinder.com/wp-content/uploads/2024/02/OKX-250x141.png",
-    Bitget:
-      "https://www.pngall.com/wp-content/uploads/17/Bitget-Advanced-Trading-Logo-PNG.png",
-  };
-
   // Debounce utility parainputs
   const debounce = (fn, delay = 300) => {
     let timeout;
@@ -69,6 +59,29 @@
       DOM.formOperacion || document.getElementById("formOperacion")
     ).addEventListener("submit", guardarOperacion);
 
+    // Limpiar errores al interactuar con los campos
+    document
+      .getElementById("fechaInicio")
+      ?.addEventListener("input", () => clearFieldError("groupFecha"));
+    document
+      .getElementById("cex")
+      ?.addEventListener("change", () => clearFieldError("groupCex"));
+    document
+      .getElementById("monto")
+      ?.addEventListener("input", () => clearFieldError("groupMonto"));
+    document
+      .getElementById("moneda")
+      ?.addEventListener("change", () => clearFieldError("groupMoneda"));
+    document
+      .getElementById("apr")
+      ?.addEventListener("input", () => clearFieldError("groupApr"));
+    document
+      .getElementById("tipoOperacion")
+      ?.addEventListener("change", () => clearFieldError("groupTipo"));
+    document
+      .getElementById("precioObjetivo")
+      ?.addEventListener("input", () => clearFieldError("groupPrecio"));
+
     const modalDetalle =
       DOM.modalDetalle || document.getElementById("modalDetalle");
     if (modalDetalle) {
@@ -77,12 +90,16 @@
       });
     }
 
-    // Cerrar selector de CEX al hacer click fuera
+    // Cerrar selector de CEX al hacer click fuera - CORREGIDO
     document.addEventListener("click", function (e) {
       const container = document.getElementById("cexCustomContainer");
+      const options = document.getElementById("cexOptions");
+      const trigger = document.getElementById("cexTrigger");
+
       if (container && !container.contains(e.target)) {
-        document.getElementById("cexOptions")?.classList.remove("show");
-        document.getElementById("cexTrigger")?.classList.remove("active");
+        options?.classList.remove("show");
+        trigger?.classList.remove("active");
+        container.classList.remove("open");
       }
     });
 
@@ -157,6 +174,7 @@
       const trigger = document.getElementById("cexTrigger");
       const optionsContainer = document.getElementById("cexOptions");
       const selectedText = document.getElementById("cexSelectedText");
+      const container = document.getElementById("cexCustomContainer");
 
       if (!select || !trigger || !optionsContainer) return;
 
@@ -176,29 +194,47 @@
         option.textContent = cex;
         select.appendChild(option);
 
-        // Opción en UI personalizada
+        // Opción en UI personalizada (solo texto)
         const customOpt = document.createElement("div");
         customOpt.className = "custom-option";
         customOpt.dataset.value = cex;
-        customOpt.innerHTML = `
-        <img src="${CEX_LOGOS[cex]}" class="cex-logo" alt="${cex}" onerror="this.style.display='none'">
-        <span>${cex}</span>
-      `;
+        customOpt.innerHTML = `<span>${cex}</span>`;
 
-        customOpt.onclick = () => {
+        // CORREGIDO: Cambiar onclick por addEventListener y mejorar la lógica
+        customOpt.addEventListener('click', (e) => {
+          e.stopPropagation();
           seleccionarCEX(cex);
+          
+          // Cerrar el dropdown después de seleccionar
           optionsContainer.classList.remove("show");
           trigger.classList.remove("active");
-        };
+          container.classList.remove("open");
+        });
 
         optionsContainer.appendChild(customOpt);
       });
 
-      trigger.onclick = (e) => {
+      trigger.addEventListener('click', (e) => {
         e.stopPropagation();
-        optionsContainer.classList.toggle("show");
-        trigger.classList.toggle("active");
-      };
+        const isOpen = optionsContainer.classList.contains("show");
+
+        // Close all other open dropdowns first
+        document.querySelectorAll(".custom-options.show").forEach((opt) => {
+          opt.classList.remove("show");
+          opt.closest(".custom-select-container")?.classList.remove("open");
+        });
+        document
+          .querySelectorAll(".custom-select-trigger.active")
+          .forEach((tr) => {
+            tr.classList.remove("active");
+          });
+
+        if (!isOpen) {
+          optionsContainer.classList.add("show");
+          trigger.classList.add("active");
+          container.classList.add("open");
+        }
+      });
 
       // Valor inicial
       seleccionarCEX("OKX");
@@ -215,13 +251,8 @@
     if (select) select.value = valor;
 
     if (selectedText) {
-      if (valor && CEX_LOGOS[valor]) {
-        selectedText.innerHTML = `
-        <div style="display:flex; align-items:center; gap:10px;">
-          <img src="${CEX_LOGOS[valor]}" class="cex-logo" alt="${valor}" onerror="this.style.display='none'">
-          <span>${valor}</span>
-        </div>
-      `;
+      if (valor) {
+        selectedText.textContent = valor;
       } else {
         selectedText.textContent = "Seleccionar CEX...";
       }
@@ -253,12 +284,15 @@
     e.preventDefault();
     console.log("Guardando operación...");
 
+    // Limpiar errores previos
+    clearFormErrors();
+
     showLoading("formLoading", true);
 
     try {
       const fechaInput = document.getElementById("fechaInicio").value;
       if (!fechaInput) {
-        showAlert("error", "Debes seleccionar una fecha de inicio");
+        showFieldError("groupFecha", "errorFecha");
         showLoading("formLoading", false);
         return;
       }
@@ -277,32 +311,32 @@
       );
 
       if (!cex) {
-        showAlert("error", "Selecciona un CEX");
+        showFieldError("groupCex", "errorCex");
         showLoading("formLoading", false);
         return;
       }
       if (!monto || isNaN(monto) || monto <= 0) {
-        showAlert("error", "Ingresa un monto válido");
+        showFieldError("groupMonto", "errorMonto");
         showLoading("formLoading", false);
         return;
       }
       if (!moneda) {
-        showAlert("error", "Selecciona una moneda");
+        showFieldError("groupMoneda", "errorMoneda");
         showLoading("formLoading", false);
         return;
       }
       if (!apr || isNaN(apr) || apr <= 0) {
-        showAlert("error", "Ingresa un APR válido");
+        showFieldError("groupApr", "errorApr");
         showLoading("formLoading", false);
         return;
       }
       if (!tipoOperacion) {
-        showAlert("error", "Selecciona un tipo de operación");
+        showFieldError("groupTipo", "errorTipo");
         showLoading("formLoading", false);
         return;
       }
       if (!precioObjetivo || isNaN(precioObjetivo) || precioObjetivo <= 0) {
-        showAlert("error", "Ingresa un precio objetivo válido");
+        showFieldError("groupPrecio", "errorPrecio");
         showLoading("formLoading", false);
         return;
       }
@@ -329,6 +363,7 @@
         crearFilaPendiente(datos);
         document.getElementById("formOperacion").reset();
         setFechaHoraActual();
+        clearFormErrors();
       }
 
       const successHandler = function (response) {
@@ -355,6 +390,7 @@
             window.editandoFila = null;
             document.getElementById("formOperacion").reset();
             setFechaHoraActual();
+            clearFormErrors();
           }
 
           cargarOperaciones(true);
@@ -439,15 +475,34 @@
             renderizarHistorial(response.completadas || []);
           });
 
-          // Establecer monto predeterminado
+          // Establecer monto y moneda predeterminado del ultimo ingreso del historial
           const completadas = response.completadas || [];
           if (completadas.length > 0) {
             const ultima = completadas[completadas.length - 1];
             const montoInput = DOM.monto || document.getElementById("monto");
-            if (montoInput && (!montoInput.value || montoInput.value === "0")) {
-              montoInput.value = ultima.final
-                ? Math.floor(parseFloat(ultima.final))
-                : "";
+            const monedaSelect =
+              DOM.moneda || document.getElementById("moneda");
+            const tipoOperacionSelect =
+              DOM.tipoOperacion || document.getElementById("tipoOperacion");
+
+            // Establecer monto = final obtenido (con decimales)
+            if (montoInput && ultima.final) {
+              montoInput.value = parseFloat(ultima.final).toString();
+            }
+
+            // Establecer moneda = moneda final del ultimo ingreso
+            if (monedaSelect && ultima.monedaFinal) {
+              monedaSelect.value = ultima.monedaFinal;
+            }
+
+            // Auto-seleccionar tipo de operacion basado en la moneda final
+            if (tipoOperacionSelect && ultima.monedaFinal) {
+              const monedaFinalUpper = ultima.monedaFinal.toUpperCase();
+              if (monedaFinalUpper === "ETH") {
+                tipoOperacionSelect.value = "Sell ETH high";
+              } else if (monedaFinalUpper === "BTC") {
+                tipoOperacionSelect.value = "Sell BTC high";
+              }
             }
           }
         } else {
@@ -563,8 +618,8 @@
           ${duracionBadge}
         </td>
         <td>
-          <div class="cex-badge">
-            <img src="${CEX_LOGOS[op.cex] || ""}" class="cex-logo" alt="${op.cex}" onerror="this.style.display='none'">
+          <div class="cex-badge" style="background:rgba(0,255,148,0.06); border:1px solid rgba(0,255,148,0.2); padding:2px 8px; border-radius:4px;">
+            <span style="color:var(--primary); font-weight:600; font-size:0.78rem;">${op.cex || "-"}</span>
           </div>
         </td>
         <td class="td-nowrap">
@@ -699,8 +754,8 @@
           ${duracionBadge}
         </td>
         <td>
-          <div class="cex-badge">
-            <img src="${CEX_LOGOS[op.cex] || ""}" class="cex-logo" alt="${op.cex}" onerror="this.style.display='none'">
+          <div class="cex-badge" style="background:rgba(0,255,148,0.06); border:1px solid rgba(0,255,148,0.2); padding:2px 8px; border-radius:4px;">
+            <span style="color:var(--primary); font-weight:600; font-size:0.78rem;">${op.cex || "-"}</span>
           </div>
         </td>
         <td class="td-nowrap">
@@ -915,9 +970,8 @@
     <div class="detail-item">
       <div class="detail-label">CEX</div>
       <div class="detail-value highlight">
-        <div class="cex-badge" style="background:transparent; border:none; padding:0;">
-          <img src="${CEX_LOGOS[op.cex] || ""}" class="cex-logo" alt="${op.cex}" onerror="this.style.display='none'">
-          <span>${op.cex || "-"}</span>
+        <div class="cex-badge" style="background:rgba(0,255,148,0.06); border:1px solid rgba(0,255,148,0.2); padding:4px 10px; border-radius:6px;">
+          <span style="color:var(--primary); font-weight:600;">${op.cex || "-"}</span>
         </div>
       </div>
     </div>
@@ -1525,14 +1579,17 @@
     return fallback || "Error desconocido";
   }
 
-  /** Sanitiza texto para evitar XSS en innerHTML */
+  /** Sanitiza texto para evitar XSS en innerHTML - Versión mejorada */
   function sanitize(str) {
     if (!str) return "";
     return String(str)
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#x27;")
+      .replace(/\//g, "&#x2F;")
+      .replace(/`/g, "&#96;");
   }
 
   /** Sistema de Tooltip Robusto */
@@ -1744,6 +1801,32 @@
     setTimeout(() => {
       if (alertEl) alertEl.classList.remove("show");
     }, 5000);
+  }
+
+  // Mostrar error inline en un campo específico
+  function showFieldError(groupId, errorId) {
+    const group = document.getElementById(groupId);
+    const error = document.getElementById(errorId);
+    if (group) group.classList.add("has-error");
+    if (error) error.classList.add("show");
+  }
+
+  // Limpiar todos los errores del formulario
+  function clearFormErrors() {
+    document.querySelectorAll(".form-group.has-error").forEach((el) => {
+      el.classList.remove("has-error");
+    });
+    document.querySelectorAll(".form-error.show").forEach((el) => {
+      el.classList.remove("show");
+    });
+  }
+
+  // Limpiar error al interactuar con el campo
+  function clearFieldError(groupId) {
+    const group = document.getElementById(groupId);
+    if (group) group.classList.remove("has-error");
+    const errorEl = group?.querySelector(".form-error");
+    if (errorEl) errorEl.classList.remove("show");
   }
 
   function showLoading(elementId, show) {
