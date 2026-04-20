@@ -143,21 +143,45 @@ function agregarOperacion(datos) {
     const diaStr    = Utilities.formatDate(new Date(fechaInicio.getTime() + 86400000), tz, 'yyyy-MM-dd');
     const fechaFin  = Utilities.parseDate(diaStr + ' 03:00:00', tz, 'yyyy-MM-dd HH:mm:ss');
 
-    sheet.getRange(nuevaFila, 5).setValue(fechaInicio).setNumberFormat('dd/mm/yyyy hh:mm'); // E
-    sheet.getRange(nuevaFila, 6).setValue(fechaFin).setNumberFormat('dd/mm/yyyy hh:mm');    // F
-    sheet.getRange(nuevaFila, 7).setValue(datos.cex);                                        // G
-
-    const montoCell = sheet.getRange(nuevaFila, 8);                                          // H
-    montoCell.setValue(datos.monto);
+    // Usar batch updates para mejorar el rendimiento
+    const range = sheet.getRange(nuevaFila, COL_E, 1, NUM_COLS);
+    const rowData = [
+      fechaInicio,           // E
+      fechaFin,              // F
+      datos.cex,             // G
+      datos.monto,           // H
+      datos.moneda,          // I
+      datos.apr / 100,       // J
+      datos.tipoOperacion,   // K
+      datos.precioObjetivo,  // L
+      '',                    // M - TIEMPO CEX (vacío al inicio)
+      '',                    // N - TIEMPO DIAS (vacío al inicio)
+      '',                    // O - DURACION (vacía al inicio)
+      '',                    // P
+      '',                    // Q - FINAL OBTENIDO (vacío al inicio)
+      '',                    // R - INTERES (vacío al inicio)
+      '',                    // S - TOTAL (vacío al inicio)
+      '',                    // T (vacío al inicio)
+      '',                    // U - MONEDA FINAL (vacía al inicio)
+      '',                    // V - APR ACUMULADO (vacío al inicio)
+      ''                     // W - APR EFECTIVO DIARIO (vacío al inicio)
+    ];
+    
+    range.setValues([rowData]);
+    
+    // Aplicar formatos numéricos
+    sheet.getRange(nuevaFila, COL_E).setNumberFormat('dd/mm/yyyy hh:mm'); // FECHA INICIO
+    sheet.getRange(nuevaFila, COL_F).setNumberFormat('dd/mm/yyyy hh:mm'); // FECHA FIN
+    sheet.getRange(nuevaFila, COL_J).setNumberFormat('0.00%');           // %APR
+    
+    const montoCell = sheet.getRange(nuevaFila, COL_H);                  // MONTO
     if      (datos.moneda === 'USDT') montoCell.setNumberFormat('$#,##0.00');
-    else if (datos.moneda === 'ETH')  montoCell.setNumberFormat('0.000');
-    else if (datos.moneda === 'BTC')  montoCell.setNumberFormat('0.0000');
+    else if (datos.moneda === 'ETH')  montoCell.setNumberFormat('0.000000');
+    else if (datos.moneda === 'BTC')  montoCell.setNumberFormat('0.000000');
+    else                              montoCell.setNumberFormat('#,##0.00');
 
-    sheet.getRange(nuevaFila, 9).setValue(datos.moneda);                             // I - MONEDA
-    sheet.getRange(nuevaFila, 10).setValue(datos.apr / 100).setNumberFormat('0.00%');// J - %APR
-    sheet.getRange(nuevaFila, 11).setValue(datos.tipoOperacion);                     // K - TIPO
-    sheet.getRange(nuevaFila, 12).setValue(datos.precioObjetivo);                    // L - PRECIO OBJ.
-
+    SpreadsheetApp.flush(); // Asegura que se apliquen los cambios
+    
     return { success: true, message: 'Operación agregada en fila ' + nuevaFila, fila: nuevaFila };
 
   } catch (error) {
@@ -213,7 +237,7 @@ function obtenerOperaciones() {
         tiempoCex:      serCell(row[8]),   // M
         tiempoDias:     serCell(row[9]),   // N
         duracion:       serCell(row[10]),  // O - TIEMPO (ej. "23 hours")
-        final:          serCell(row[15]),  // T - FINAL OBTENIDO (valor numérico)
+        final:          serCell(row[15]),  // Q - FINAL OBTENIDO (valor numérico)
         interes:        serCell(row[13]),  // R - INTERÉS
         total:          serCell(row[14]),  // S - TOTAL
         monedaFinal:    serCell(row[16]),  // U - MONEDA FINAL (confirmación)
@@ -248,6 +272,7 @@ function eliminarOperacionFila(fila) {
   try {
     const { sheet } = getSheet();
     sheet.deleteRow(fila);
+    SpreadsheetApp.flush(); // Asegura que se apliquen los cambios
     return { success: true, message: 'Operación eliminada' };
   } catch (error) {
     Logger.log('Error eliminarOperacionFila: ' + error.toString());
@@ -269,16 +294,33 @@ function actualizarOperacionFila(datos) {
     const fechaFin  = Utilities.parseDate(diaStr + ' 03:00:00', tz, 'yyyy-MM-dd HH:mm:ss');
     
     const f = datos.fila;
-    sheet.getRange(f, COL_E).setValue(fechaInicio);
-    sheet.getRange(f, COL_F).setValue(fechaFin);
-    sheet.getRange(f, COL_G).setValue(datos.cex);
-    sheet.getRange(f, COL_H).setValue(datos.monto);
-    sheet.getRange(f, COL_I).setValue(datos.moneda);
-    sheet.getRange(f, COL_J).setValue(datos.apr / 100); 
-    sheet.getRange(f, COL_K).setValue(datos.tipoOperacion);
-    sheet.getRange(f, COL_L).setValue(datos.precioObjetivo);
     
-    SpreadsheetApp.flush();
+    // Actualizar múltiples celdas a la vez para mejorar el rendimiento
+    const range = sheet.getRange(f, COL_E, 1, 8); // Actualizamos desde E hasta K
+    const rowData = [
+      fechaInicio,           // E
+      fechaFin,              // F
+      datos.cex,             // G
+      datos.monto,           // H
+      datos.moneda,          // I
+      datos.apr / 100,       // J
+      datos.tipoOperacion,   // K
+      datos.precioObjetivo   // L
+    ];
+    
+    range.setValues([rowData]);
+    
+    // Aplicar formato a la celda de APR
+    sheet.getRange(f, COL_J).setNumberFormat('0.00%');
+    
+    // Aplicar formato al monto
+    const montoCell = sheet.getRange(f, COL_H);
+    if      (datos.moneda === 'USDT') montoCell.setNumberFormat('$#,##0.00');
+    else if (datos.moneda === 'ETH')  montoCell.setNumberFormat('0.000000');
+    else if (datos.moneda === 'BTC')  montoCell.setNumberFormat('0.000000');
+    else                              montoCell.setNumberFormat('#,##0.00');
+    
+    SpreadsheetApp.flush(); // Asegura que se apliquen los cambios
     return { success: true, message: 'Operación actualizada correctamente' };
   } catch (error) {
     Logger.log('Error actualizarOperacionFila: ' + error.toString());
@@ -289,7 +331,41 @@ function actualizarOperacionFila(datos) {
 function completarOperacion(fila, monedaFinal) {
   try {
     const { sheet } = getSheet();
+    
+    // Actualizar la moneda final
     sheet.getRange(fila, COL_MONEDA_FINAL).setValue(monedaFinal);
+    
+    // Calcular interés, total y otros valores derivados
+    const monto = sheet.getRange(fila, COL_H).getValue();
+    const apr = sheet.getRange(fila, COL_J).getValue(); // Ya es decimal (0.15 = 15%)
+    const precioObj = sheet.getRange(fila, COL_L).getValue();
+    
+    // Calcular interés: monto * apr (ya que apr es decimal)
+    const interes = monto * apr;
+    
+    // Calcular total: monto + interés
+    const total = monto + interes;
+    
+    // Actualizar interés (R) y total (S)
+    sheet.getRange(fila, COL_R).setValue(interes);
+    sheet.getRange(fila, COL_S).setValue(total);
+    
+    // Calcular APR acumulado y efectivo diario (fórmulas simplificadas)
+    // Aquí puedes poner tus propias fórmulas basadas en la lógica de negocio
+    const aprAcumulado = apr; // Por ejemplo, usar el mismo valor inicialmente
+    const aprEfectivoDiario = apr / 365; // Ejemplo: división simple entre 365 días
+    
+    sheet.getRange(fila, COL_V).setValue(aprAcumulado);
+    sheet.getRange(fila, COL_W).setValue(aprEfectivoDiario);
+    
+    // Aplicar formatos
+    sheet.getRange(fila, COL_R).setNumberFormat('$#,##0.00');
+    sheet.getRange(fila, COL_S).setNumberFormat('$#,##0.00');
+    sheet.getRange(fila, COL_V).setNumberFormat('0.00%');
+    sheet.getRange(fila, COL_W).setNumberFormat('0.00%');
+    
+    SpreadsheetApp.flush(); // Asegura que se apliquen los cambios
+    
     return { success: true, message: 'Operación completada correctamente' };
   } catch (error) {
     Logger.log('Error en completarOperacion: ' + error.toString());
@@ -440,7 +516,7 @@ function actualizarCelda(celda, valor, nota) {
     SpreadsheetApp.flush();
     return { success: true, message: 'Valor actualizado' };
   } catch (error) {
-    Logger.log('Error en actualizarB6: ' + error.toString());
+    Logger.log('Error en actualizarCelda: ' + error.toString());
     return { success: false, message: error.toString() };
   }
 }

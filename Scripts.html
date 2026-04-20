@@ -55,45 +55,28 @@
     cargarCEXSelect();
     establecerOtrosPredeterminados();
 
-    (
-      DOM.formOperacion || document.getElementById("formOperacion")
-    ).addEventListener("submit", guardarOperacion);
+    // Using cached DOM element
+    DOM.formOperacion.addEventListener("submit", guardarOperacion);
 
     // Limpiar errores al interactuar con los campos
-    document
-      .getElementById("fechaInicio")
-      ?.addEventListener("input", () => clearFieldError("groupFecha"));
-    document
-      .getElementById("cex")
-      ?.addEventListener("change", () => clearFieldError("groupCex"));
-    document
-      .getElementById("monto")
-      ?.addEventListener("input", () => clearFieldError("groupMonto"));
-    document
-      .getElementById("moneda")
-      ?.addEventListener("change", () => {
-        clearFieldError("groupMoneda");
-        actualizarStepMonto(document.getElementById("moneda").value);
-      });
-    document
-      .getElementById("apr")
-      ?.addEventListener("input", () => clearFieldError("groupApr"));
-    document
-      .getElementById("tipoOperacion")
-      ?.addEventListener("change", () => clearFieldError("groupTipo"));
-    document
-      .getElementById("precioObjetivo")
-      ?.addEventListener("input", () => clearFieldError("groupPrecio"));
+    DOM.fechaInicio.addEventListener("input", () => clearFieldError("groupFecha"));
+    DOM.cex.addEventListener("change", () => clearFieldError("groupCex"));
+    DOM.monto.addEventListener("input", () => clearFieldError("groupMonto"));
+    DOM.moneda.addEventListener("change", () => {
+      clearFieldError("groupMoneda");
+      actualizarStepMonto(DOM.moneda.value);
+    });
+    DOM.apr.addEventListener("input", () => clearFieldError("groupApr"));
+    DOM.tipoOperacion.addEventListener("change", () => clearFieldError("groupTipo"));
+    DOM.precioObjetivo.addEventListener("input", () => clearFieldError("groupPrecio"));
 
-    const modalDetalle =
-      DOM.modalDetalle || document.getElementById("modalDetalle");
-    if (modalDetalle) {
-      modalDetalle.addEventListener("click", function (e) {
+    if (DOM.modalDetalle) {
+      DOM.modalDetalle.addEventListener("click", function (e) {
         if (e.target === this) cerrarModal();
       });
     }
 
-    // Cerrar selector de CEX al hacer click fuera - CORREGIDO
+    // Cerrar selector de CEX al hacer click fuera
     document.addEventListener("click", function (e) {
       const container = document.getElementById("cexCustomContainer");
       const options = document.getElementById("cexOptions");
@@ -156,7 +139,7 @@
     setupDelegation("historialContainer");
 
     // Agregar event listener para el cambio de moneda
-    document.getElementById("moneda")?.addEventListener("change", function() {
+    DOM.moneda.addEventListener("change", function() {
       actualizarStepMonto(this.value);
     });
   });
@@ -171,8 +154,8 @@
 
       const offset = ahora.getTimezoneOffset() * 60000;
       const local = new Date(ahora.getTime() - offset);
-      const input = DOM.fechaInicio || document.getElementById("fechaInicio");
-      if (input) input.value = local.toISOString().slice(0, 16);
+      // Using cached DOM element
+      DOM.fechaInicio.value = local.toISOString().slice(0, 16);
     } catch (e) {
       console.error("Error al establecer fecha:", e);
     }
@@ -180,7 +163,7 @@
 
   function cargarCEXSelect() {
     try {
-      const select = DOM.cex || document.getElementById("cex");
+      const select = DOM.cex;
       const trigger = document.getElementById("cexTrigger");
       const optionsContainer = document.getElementById("cexOptions");
       const selectedText = document.getElementById("cexSelectedText");
@@ -261,7 +244,7 @@
   }
 
   function seleccionarCEX(valor) {
-    const select = document.getElementById("cex");
+    const select = DOM.cex;
     const selectedText = document.getElementById("cexSelectedText");
     const options = document.querySelectorAll(".custom-option");
 
@@ -283,15 +266,12 @@
 
   function establecerOtrosPredeterminados() {
     try {
-      const monedaSelect = DOM.moneda || document.getElementById("moneda");
-      const tipoSelect =
-        DOM.tipoOperacion || document.getElementById("tipoOperacion");
-
-      if (monedaSelect) monedaSelect.value = "USDT";
-      if (tipoSelect) tipoSelect.value = "Buy ETH low";
+      // Using cached DOM elements
+      DOM.moneda.value = "USDT";
+      DOM.tipoOperacion.value = "Buy ETH low";
       
       // Establecer el step adecuado según la moneda
-      actualizarStepMonto(monedaSelect.value);
+      actualizarStepMonto(DOM.moneda.value);
     } catch (e) {
       console.error("Error al establecer otros predeterminados:", e);
     }
@@ -303,13 +283,13 @@
   
   // Función para actualizar el atributo step del campo monto según la moneda
   function actualizarStepMonto(moneda) {
-    const montoInput = DOM.monto || document.getElementById("monto");
+    // Using cached DOM element
     if (moneda === "ETH") {
-      montoInput.step = "0.000001"; // 6 decimales para ETH
+      DOM.monto.step = "0.000001"; // 6 decimales para ETH
     } else if (moneda === "BTC") {
-      montoInput.step = "0.000001"; // 6 decimales para BTC
+      DOM.monto.step = "0.000001"; // 6 decimales para BTC
     } else {
-      montoInput.step = "0.01"; // 2 decimales para USDT u otras monedas
+      DOM.monto.step = "0.01"; // 2 decimales para USDT u otras monedas
     }
   }
 
@@ -399,10 +379,6 @@
         crearFilaPendiente(datos);
         document.getElementById("formOperacion").reset();
         setFechaHoraActual();
-        
-        // Restaurar el valor predeterminado de step después del reset
-        actualizarStepMonto(document.getElementById("moneda").value);
-        
         clearFormErrors();
       }
 
@@ -430,10 +406,6 @@
             window.editandoFila = null;
             document.getElementById("formOperacion").reset();
             setFechaHoraActual();
-            
-            // Restaurar el valor predeterminado de step después del reset
-            actualizarStepMonto(document.getElementById("moneda").value);
-            
             clearFormErrors();
           }
 
@@ -529,7 +501,7 @@
             const tipoOperacionSelect =
               DOM.tipoOperacion || document.getElementById("tipoOperacion");
 
-            // Establecer monto = final obtenido (con decimales)
+            // Establecer monto = final obtenido (con decimales según moneda)
             if (montoInput && ultima.final) {
               const montoValue = parseFloat(ultima.final);
               if (ultima.monedaFinal === 'ETH' || ultima.monedaFinal === 'BTC') {
@@ -937,9 +909,6 @@
     document.getElementById("monto").value = op.monto || "";
     document.getElementById("moneda").value = op.moneda || "";
 
-    // Actualizar el step del monto según la moneda
-    actualizarStepMonto(op.moneda || "USDT");
-
     document.getElementById("apr").value = op.apr || "";
     document.getElementById("tipoOperacion").value = op.tipoOperacion || "";
     document.getElementById("precioObjetivo").value = op.precioObjetivo || "";
@@ -970,9 +939,6 @@
     document.getElementById("formOperacion").reset();
     seleccionarCEX("OKX"); // Reset custom select
     setFechaHoraActual();
-    
-    // Actualizar el step del monto según la moneda predeterminada
-    actualizarStepMonto("USDT");
 
     const submitBtn = document.querySelector(
       '#formOperacion button[type="submit"]',

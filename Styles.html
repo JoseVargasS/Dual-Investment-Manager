@@ -665,7 +665,7 @@
   .custom-select-container {
     position: relative;
     width: 100%;
-    z-index: 1000;
+    z-index: 1;
   }
 
   .custom-select-container.open {
@@ -731,8 +731,6 @@
     overflow: hidden;
     backdrop-filter: blur(20px);
     pointer-events: none;
-    max-height: 0;
-    overflow-y: auto;
   }
 
   .custom-options.show {
@@ -740,7 +738,6 @@
     visibility: visible;
     transform: translateY(0);
     pointer-events: auto;
-    max-height: 200px;
   }
 
   .custom-option {
