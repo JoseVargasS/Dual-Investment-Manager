@@ -440,6 +440,9 @@
             clearFormErrors();
           }
 
+          // Cerrar el modal flotante después de guardar exitosamente
+          cerrarFormularioDirecto();
+
           cargarOperaciones(true);
           cargarResumen();
         } else {
@@ -982,7 +985,8 @@
     const btnCancel = document.getElementById("btnCancelar");
     if (btnCancel) btnCancel.style.display = "inline-block";
 
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    // Mostrar el modal flotante en lugar de scroll
+    mostrarFormulario();
   }
 
   function cancelarEdicion() {
@@ -1005,6 +1009,9 @@
     // Ocultar alerta de info
     const alertInfo = document.getElementById("alertInfo");
     if (alertInfo) alertInfo.classList.remove("show");
+
+    // Cerrar el modal flotante si está abierto
+    cerrarFormularioDirecto();
   }
 
   // ============================================
@@ -2067,6 +2074,34 @@
 
       document.body.appendChild(shard);
       setTimeout(() => shard.remove(), 1200);
+    }
+  }
+
+  // ============================================
+  // FORMULARIO FLOTANTE
+  // ============================================
+  function mostrarFormulario() {
+    const modal = document.getElementById("modalFormulario");
+    if (modal) {
+      modal.classList.add("active");
+      document.body.style.overflow = "hidden";
+    }
+  }
+
+  function cerrarFormulario(event) {
+    if (event && event.target !== event.currentTarget) return;
+    const modal = document.getElementById("modalFormulario");
+    if (modal) {
+      modal.classList.remove("active");
+      document.body.style.overflow = "";
+    }
+  }
+
+  function cerrarFormularioDirecto() {
+    const modal = document.getElementById("modalFormulario");
+    if (modal) {
+      modal.classList.remove("active");
+      document.body.style.overflow = "";
     }
   }
 </script>
