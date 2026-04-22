@@ -681,7 +681,7 @@
           ${duracionBadge}
         </td>
         <td>
-          <div class="cex-badge" style="background:rgba(0,255,148,0.06); border:1px solid rgba(0,255,148,0.2); padding:2px 8px; border-radius:4px;">
+          <div class="cex-badge">
             <span style="color:var(--primary); font-weight:600; font-size:0.78rem;">${op.cex || "-"}</span>
           </div>
         </td>
@@ -819,7 +819,7 @@
           ${duracionBadge}
         </td>
         <td>
-          <div class="cex-badge" style="background:rgba(0,255,148,0.06); border:1px solid rgba(0,255,148,0.2); padding:2px 8px; border-radius:4px;">
+          <div class="cex-badge">
             <span style="color:var(--primary); font-weight:600; font-size:0.78rem;">${op.cex || "-"}</span>
           </div>
         </td>
@@ -1054,8 +1054,8 @@
     <div class="detail-item">
       <div class="detail-label">CEX</div>
       <div class="detail-value highlight">
-        <div class="cex-badge" style="background:rgba(0,255,148,0.06); border:1px solid rgba(0,255,148,0.2); padding:4px 10px; border-radius:6px;">
-          <span style="color:var(--primary); font-weight:600;">${op.cex || "-"}</span>
+        <div class="detail-cex-badge">
+          <span>${op.cex || "-"}</span>
         </div>
       </div>
     </div>
@@ -1496,19 +1496,19 @@
         <button class="edit-modal-close" onclick="document.getElementById('editB6Modal').remove()">&times;</button>
       </div>
       <div class="edit-modal-body" style="padding:24px;">
-        <div id="editItemsContainer" style="border:1px solid rgba(255,255,255,0.1); border-radius:12px; overflow:hidden; background:rgba(0,0,0,0.2); max-height:350px; overflow-y:auto;">
+        <div id="editItemsContainer" style="border:1px solid var(--border); border-radius:12px; overflow:hidden; background:var(--table-container-bg); max-height:350px; overflow-y:auto;">
           <!-- Items renderizados aquí -->
         </div>
         <button class="edit-btn-add-row" id="btnAddEditRow">
           <span>+</span> Añadir Concepto
         </button>
-        <div class="edit-formula-total" style="padding:15px; border-top:1px dashed rgba(212, 175, 55, 0.4); background:rgba(212, 175, 55, 0.05); border-radius:8px; margin-top:8px;">
+        <div class="edit-formula-total" style="padding:15px; border-top:1px dashed var(--warning); background:var(--warning-subtle); border-radius:8px; margin-top:8px;">
           <span class="edit-formula-total-label" style="font-size:0.75rem; color:var(--text-muted);">TOTAL CALCULADO:</span>
           <span class="edit-formula-total-value" id="editTotalCalc" style="color:var(--warning); font-size:1.4rem; font-weight:700;">S/ 0.00</span>
         </div>
       </div>
       <div class="edit-modal-actions" style="padding:0 24px 24px; display:flex; gap:12px;">
-        <button class="edit-btn-cancel" style="flex:1; padding:14px; border-radius:12px; background:rgba(255,255,255,0.05); color:var(--text); border:1px solid rgba(255,255,255,0.1); cursor:pointer;" onclick="document.getElementById('editB6Modal').remove()">Cancelar</button>
+        <button class="edit-btn-cancel" style="flex:1; padding:14px; border-radius:12px; background:var(--btn-icon-bg); color:var(--text); border:1px solid var(--border); cursor:pointer;" onclick="document.getElementById('editB6Modal').remove()">Cancelar</button>
         <button class="edit-btn-confirm" id="editB6Confirm" style="flex:1.5; padding:14px; border-radius:12px; background:var(--secondary); color:var(--dark); font-weight:700; border:none; cursor:pointer;">✓ Guardar</button>
       </div>
     </div>
@@ -1523,15 +1523,15 @@
       container.innerHTML = addends
         .map(
           (a, i) => `
-      <div class="edit-item-row" style="display:flex; border-bottom:1px solid rgba(255,255,255,0.06); align-items:center; background: ${i % 2 === 0 ? "rgba(255,255,255,0.01)" : "transparent"}">
-        <div style="flex:0 0 110px; padding:14px; border-right:1px solid rgba(255,255,255,0.06);">
+      <div class="edit-item-row" style="display:flex; border-bottom:1px solid var(--border); align-items:center; background: ${i % 2 === 0 ? "var(--tr-hover-bg)" : "transparent"}">
+        <div style="flex:0 0 110px; padding:14px; border-right:1px solid var(--border);">
           <input type="number" step="0.01" value="${a.valor}" class="edit-inp-val"
                  style="width:100%; background:transparent; border:none; color:var(--primary); font-family:var(--font-mono); font-size:1.1rem; outline:none; font-weight:600;" oninput="actualizarTotalDesdeDOM()"/>
         </div>
         <div style="flex:1; padding:14px; display:flex; align-items:center; gap:8px;">
           <input type="text" value="${sanitize(a.desc)}" class="edit-inp-desc"
-                 style="flex:1; background:transparent; border:none; color:var(--gray-light); outline:none; font-size:0.95rem;" placeholder="Descripción..." />
-          <button title="Eliminar" onclick="this.closest('.edit-item-row').remove(); actualizarTotalDesdeDOM();" style="background:rgba(255, 77, 109, 0.1); border:none; color:#ff4d6d; cursor:pointer; font-size:1.1rem; width:28px; height:28px; border-radius:6px;">&times;</button>
+                 style="flex:1; background:transparent; border:none; color:var(--text); outline:none; font-size:0.95rem;" placeholder="Descripción..." />
+          <button title="Eliminar" onclick="this.closest('.edit-item-row').remove(); actualizarTotalDesdeDOM();" style="background:var(--danger-subtle); border:none; color:var(--danger); cursor:pointer; font-size:1.1rem; width:28px; height:28px; border-radius:6px;">&times;</button>
         </div>
       </div>
     `,
@@ -1558,16 +1558,16 @@
       const newRow = document.createElement("div");
       newRow.className = "edit-item-row";
       newRow.style.cssText =
-        "display:flex; border-bottom:1px solid rgba(255,255,255,0.06); align-items:center;";
+        "display:flex; border-bottom:1px solid var(--border); align-items:center;";
       newRow.innerHTML = `
-        <div style="flex:0 0 110px; padding:14px; border-right:1px solid rgba(255,255,255,0.06);">
+        <div style="flex:0 0 110px; padding:14px; border-right:1px solid var(--border);">
           <input type="number" step="0.01" value="0" class="edit-inp-val"
                  style="width:100%; background:transparent; border:none; color:var(--primary); font-family:var(--font-mono); font-size:1.1rem; outline:none; font-weight:600;" oninput="actualizarTotalDesdeDOM()"/>
         </div>
         <div style="flex:1; padding:14px; display:flex; align-items:center; gap:8px;">
           <input type="text" value="" class="edit-inp-desc"
-                 style="flex:1; background:transparent; border:none; color:var(--gray-light); outline:none; font-size:0.95rem;" placeholder="Descripción..." />
-          <button title="Eliminar" onclick="this.closest('.edit-item-row').remove(); actualizarTotalDesdeDOM();" style="background:rgba(255, 77, 109, 0.1); border:none; color:#ff4d6d; cursor:pointer; font-size:1.1rem; width:28px; height:28px; border-radius:6px;">&times;</button>
+                 style="flex:1; background:transparent; border:none; color:var(--text); outline:none; font-size:0.95rem;" placeholder="Descripción..." />
+          <button title="Eliminar" onclick="this.closest('.edit-item-row').remove(); actualizarTotalDesdeDOM();" style="background:var(--danger-subtle); border:none; color:var(--danger); cursor:pointer; font-size:1.1rem; width:28px; height:28px; border-radius:6px;">&times;</button>
         </div>
     `;
       container.appendChild(newRow);
@@ -2104,4 +2104,26 @@
       document.body.style.overflow = "";
     }
   }
+
+  // ============================================
+  // TEMA: MODO OSCURO / CLARO
+  // ============================================
+  function toggleTheme() {
+    const isLight = document.body.getAttribute("data-theme") === "light";
+    const newTheme = isLight ? "dark" : "light";
+    if (newTheme === "light") {
+      document.body.setAttribute("data-theme", "light");
+    } else {
+      document.body.removeAttribute("data-theme");
+    }
+    localStorage.setItem("theme", newTheme);
+  }
+
+  // Inicializar tema guardado
+  document.addEventListener("DOMContentLoaded", () => {
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme === "light") {
+      document.body.setAttribute("data-theme", "light");
+    }
+  });
 </script>
