@@ -64,7 +64,7 @@
     --card-hover-inset-1: 0 0 1px rgba(0, 255, 148, 0.25) inset;
     --card-hover-inset-2: -5px -5px 20px rgba(0, 0, 0, 0.25) inset;
     --card-hover-inset-3: 5px 5px 20px rgba(255, 255, 255, 0.04) inset;
-    
+
     --input-bg: rgba(0, 0, 0, 0.3);
     --input-bg-hover: rgba(0, 0, 0, 0.4);
     --input-bg-focus: rgba(0, 212, 255, 0.06);
@@ -76,12 +76,12 @@
     --btn-overlay: rgba(255, 255, 255, 0.1);
     --glass-border-light: rgba(255, 255, 255, 0.1);
     --resumen-hover-bg: rgba(0, 212, 255, 0.03);
-    
+
     --primary-badge-bg: rgba(0, 255, 148, 0.1);
     --primary-badge-border: rgba(0, 255, 148, 0.2);
     --secondary-badge-bg: rgba(0, 212, 255, 0.1);
     --secondary-badge-border: rgba(0, 212, 255, 0.2);
-    
+
     --icon-gradient-start: rgba(0, 255, 148, 0.2);
     --icon-gradient-end: rgba(0, 255, 148, 0.08);
     --icon-border: rgba(0, 255, 148, 0.3);
@@ -89,16 +89,30 @@
     --btn-icon-bg: rgba(13, 18, 36, 0.5);
     --modal-base-bg: rgba(20, 20, 20, 0.7);
     --modal-base-border: rgba(255, 255, 255, 0.1);
-    --modal-base-header-bg: linear-gradient(135deg, rgba(0, 255, 148, 0.1), rgba(0, 255, 148, 0.04));
+    --modal-base-header-bg: linear-gradient(
+      135deg,
+      rgba(0, 255, 148, 0.1),
+      rgba(0, 255, 148, 0.04)
+    );
     --modal-bg: linear-gradient(160deg, #0d1224 0%, #111827 100%);
     --modal-border: rgba(0, 212, 255, 0.25);
-    --modal-header-bg: linear-gradient(135deg, rgba(0, 212, 255, 0.08), rgba(0, 153, 204, 0.03));
+    --modal-header-bg: linear-gradient(
+      135deg,
+      rgba(0, 212, 255, 0.08),
+      rgba(0, 153, 204, 0.03)
+    );
     --tooltip-bg: #0d111a;
     --flotante-icon-color: #000000;
-    
+
     --header-gradient-start: #ffffff;
     --header-gradient-mid: #aaffaa;
-    --title-gradient: linear-gradient(135deg, var(--header-gradient-start) 0%, var(--header-gradient-mid) 30%, var(--primary) 60%, var(--secondary) 100%);
+    --title-gradient: linear-gradient(
+      135deg,
+      var(--header-gradient-start) 0%,
+      var(--header-gradient-mid) 30%,
+      var(--primary) 60%,
+      var(--secondary) 100%
+    );
   }
 
   [data-theme="light"] {
@@ -142,7 +156,7 @@
     --card-hover-inset-1: 0 0 0 transparent inset;
     --card-hover-inset-2: 0 0 0 transparent inset;
     --card-hover-inset-3: 0 0 0 transparent inset;
-    
+
     --input-bg: #f3f4f6;
     --input-bg-hover: #e5e7eb;
     --input-bg-focus: #f0f9ff;
@@ -154,12 +168,12 @@
     --btn-overlay: rgba(0, 0, 0, 0.05);
     --glass-border-light: rgba(0, 0, 0, 0.1);
     --resumen-hover-bg: #f0f9ff;
-    
+
     --primary-badge-bg: rgba(0, 179, 104, 0.1);
     --primary-badge-border: rgba(0, 179, 104, 0.2);
     --secondary-badge-bg: rgba(0, 150, 199, 0.1);
     --secondary-badge-border: rgba(0, 150, 199, 0.2);
-    
+
     --icon-gradient-start: rgba(0, 179, 104, 0.2);
     --icon-gradient-end: rgba(0, 179, 104, 0.08);
     --icon-border: rgba(0, 179, 104, 0.3);
@@ -173,10 +187,16 @@
     --modal-header-bg: #f8fafc;
     --tooltip-bg: #ffffff;
     --flotante-icon-color: #ffffff;
-    
+
     --header-gradient-start: #0f172a;
     --header-gradient-mid: #008a50;
-    --title-gradient: linear-gradient(135deg, var(--header-gradient-start) 0%, var(--header-gradient-mid) 30%, var(--primary) 60%, var(--secondary) 100%);
+    --title-gradient: linear-gradient(
+      135deg,
+      var(--header-gradient-start) 0%,
+      var(--header-gradient-mid) 30%,
+      var(--primary) 60%,
+      var(--secondary) 100%
+    );
   }
 
   html {
@@ -253,7 +273,9 @@
     align-items: center;
     padding: 4px;
     box-sizing: border-box;
-    transition: background 0.3s, border-color 0.3s;
+    transition:
+      background 0.3s,
+      border-color 0.3s;
     z-index: 100;
   }
 
@@ -269,7 +291,7 @@
     border-radius: 50%;
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 2;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   }
 
   [data-theme="light"] .theme-toggle-circle {
@@ -319,7 +341,22 @@
     align-items: center;
     justify-content: center;
     width: 28px;
+    height: 22px;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .theme-toggle-icon svg {
+    width: 22px;
+    height: 22px;
+    stroke: currentColor;
+  }
+
+  [data-theme="light"] .theme-toggle-btn svg {
+    stroke: #1a1a2e;
+  }
+
+  .theme-toggle-btn svg {
+    stroke: #fff;
   }
 
   @keyframes float-orb {
@@ -450,9 +487,7 @@
     border-radius: 20px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     box-shadow:
-      var(--card-shadow),
-      var(--card-inset-1),
-      var(--card-inset-2),
+      var(--card-shadow), var(--card-inset-1), var(--card-inset-2),
       var(--card-inset-3);
     padding: 26px;
     margin-bottom: 20px;
@@ -506,10 +541,8 @@
       var(--card-bg-hover-2) 100%
     );
     box-shadow:
-      var(--card-shadow-hover),
-      var(--card-hover-glow),
-      var(--card-hover-inset-1),
-      var(--card-hover-inset-2),
+      var(--card-shadow-hover), var(--card-hover-glow),
+      var(--card-hover-inset-1), var(--card-hover-inset-2),
       var(--card-hover-inset-3);
     transform: translateY(-2px);
   }
@@ -549,6 +582,12 @@
       0 2px 8px rgba(0, 0, 0, 0.1),
       inset 0 1px 0 rgba(255, 255, 255, 0.3);
     transition: var(--transition-normal);
+  }
+
+  .card-title .icon svg,
+  .section-title .icon svg {
+    width: 20px;
+    height: 20px;
   }
 
   .card:hover .card-title .icon {
@@ -719,6 +758,11 @@
     will-change: transform, box-shadow;
   }
 
+  .btn svg {
+    stroke: currentColor;
+    flex-shrink: 0;
+  }
+
   .btn::before {
     content: "";
     position: absolute;
@@ -726,11 +770,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: linear-gradient(
-      180deg,
-      var(--btn-overlay) 0%,
-      transparent 50%
-    );
+    background: linear-gradient(180deg, var(--btn-overlay) 0%, transparent 50%);
     pointer-events: none;
     opacity: 0;
     transition: opacity var(--transition-fast);
@@ -818,7 +858,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 14px 16px;
+    padding: 9.5px 16px;
     background: var(--input-bg);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
@@ -1251,7 +1291,7 @@
   }
 
   .modal-header {
-    padding: 22px 26px;
+    padding: 16px 26px;
     border-bottom: 1px solid var(--border);
     display: flex;
     justify-content: space-between;
@@ -1266,6 +1306,13 @@
     font-weight: 700;
     color: var(--primary);
     letter-spacing: -0.2px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .modal-title svg {
+    stroke: var(--primary);
   }
 
   .modal-close {
@@ -1297,7 +1344,7 @@
   .detail-grid {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 12px;
+    gap: 8px;
     padding: 4px;
   }
 
@@ -1305,7 +1352,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 16px 20px;
+    padding: 11px 20px;
     background: var(--table-container-bg);
     border: 1px solid var(--border);
     border-radius: 14px;
@@ -1315,7 +1362,7 @@
   }
 
   .detail-item::before {
-    content: '';
+    content: "";
     position: absolute;
     left: 0;
     top: 0;
@@ -1537,6 +1584,24 @@
     border: 1px solid rgba(0, 212, 255, 0.15);
   }
 
+  .alert svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+
+  .alert-success svg {
+    stroke: var(--primary);
+  }
+
+  .alert-error svg {
+    stroke: var(--danger);
+  }
+
+  .alert-info svg {
+    stroke: var(--secondary);
+  }
+
   /* ==============================
      LOADING
   ============================== */
@@ -1593,6 +1658,13 @@
       glow 2s ease-in-out infinite alternate;
   }
 
+  .empty-state-icon svg {
+    width: 48px;
+    height: 48px;
+    stroke: var(--primary);
+    opacity: 0.3;
+  }
+
   @keyframes float {
     0%,
     100% {
@@ -1642,6 +1714,12 @@
     margin-bottom: 14px;
     opacity: 0.5;
     display: block;
+  }
+
+  .error-state-icon svg {
+    width: 48px;
+    height: 48px;
+    stroke: var(--danger);
   }
 
   .error-state h3 {
@@ -1857,7 +1935,7 @@
     }
 
     .detail-item {
-      padding: 14px;
+      padding: 9px 14px;
     }
 
     .detail-label {
@@ -1904,11 +1982,11 @@
     }
 
     .modal-header {
-      padding: 18px 20px;
+      padding: 11px 20px;
     }
 
     .modal-body {
-      padding: 20px;
+      padding: 15px 12px;
     }
 
     .modal-title {
@@ -2020,7 +2098,7 @@
     .form-group input,
     .form-group select {
       font-size: 0.95rem;
-      padding: 12px 12px;
+      padding: 9.5px 12px;
     }
 
     .form-group label {
@@ -2065,6 +2143,26 @@
 
     .badge-duration {
       font-size: 0.65rem;
+    }
+
+    .label-new-op {
+      display: flex;
+      width: 100px;
+      align-items: center;
+    }
+
+    .form-group label {
+      margin-bottom: 0px;
+    }
+
+    #groupCex,
+    #groupMonto,
+    #groupMoneda,
+    #groupApr,
+    #groupTipo,
+    #groupPrecio {
+      display: flex;
+      flex-direction: row;
     }
   }
 
@@ -2786,6 +2884,10 @@
     font-family: var(--font-main);
   }
 
+  .btn-flotante-icon svg {
+    stroke: var(--flotante-icon-color);
+  }
+
   /* ==============================
      MODAL FORMULARIO FLOTANTE
   ============================== */
@@ -2932,7 +3034,7 @@
     }
 
     .modal-form-header {
-      padding: 18px 20px;
+      padding: 11px 20px;
     }
 
     .modal-form-title {
@@ -2940,11 +3042,11 @@
     }
 
     .modal-form .form-grid {
-      padding: 20px;
+      padding: 14px 20px;
     }
 
     .modal-form .form-actions {
-      padding: 0 20px 20px;
+      padding: 0 20px 16px;
     }
   }
 
