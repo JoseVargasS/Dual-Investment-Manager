@@ -68,10 +68,7 @@
     DOM.fechaInicio.addEventListener("input", createClearErrorListener("groupFecha"));
     DOM.cex.addEventListener("change", createClearErrorListener("groupCex"));
     DOM.monto.addEventListener("input", createClearErrorListener("groupMonto"));
-    DOM.moneda.addEventListener("change", () => {
-      clearFieldError("groupMoneda");
-      actualizarStepMonto(DOM.moneda.value);
-    });
+    DOM.moneda.addEventListener("change", manejarCambioMoneda);
     DOM.apr.addEventListener("input", createClearErrorListener("groupApr"));
     DOM.tipoOperacion.addEventListener("change", createClearErrorListener("groupTipo"));
     DOM.precioObjetivo.addEventListener("input", createClearErrorListener("groupPrecio"));
@@ -146,11 +143,12 @@
     setupDelegation("activasContainer");
     setupDelegation("historialContainer");
 
-    // Agregar event listener para el cambio de moneda
-    DOM.moneda.addEventListener("change", function () {
-      actualizarStepMonto(this.value);
-    });
   });
+
+  function manejarCambioMoneda() {
+    clearFieldError("groupMoneda");
+    actualizarStepMonto(DOM.moneda.value);
+  }
 
   // ============================================
   // CONFIGURACIÓN
@@ -320,14 +318,7 @@
 
   // Función para actualizar el atributo step del campo monto según la moneda
   function actualizarStepMonto(moneda) {
-    // Using cached DOM element
-    if (moneda === "ETH") {
-      DOM.monto.step = "0.000001"; // 6 decimales para ETH
-    } else if (moneda === "BTC") {
-      DOM.monto.step = "0.000001"; // 6 decimales para BTC
-    } else {
-      DOM.monto.step = "0.01"; // 2 decimales para USDT u otras monedas
-    }
+    DOM.monto.step = (moneda === "ETH" || moneda === "BTC") ? "0.000001" : "0.01";
   }
 
   // ============================================
@@ -460,11 +451,11 @@
            // Cerrar el modal flotante después de guardar exitosamente
            cerrarFormularioDirecto();
 
-           cargarOperaciones(true);
-           cargarResumen();
-         } else {
-           showAlert("error", extraerMensaje(response, "Error en el servidor"));
-           cargarOperaciones(true); // Recargar por si acaso para quitar la fila pendiente
+            cargarOperaciones(true);
+            cargarResumen(true);
+          } else {
+            showAlert("error", extraerMensaje(response, "Error en el servidor"));
+            cargarOperaciones(true); // Recargar por si acaso para quitar la fila pendiente
          }
        };
 
@@ -500,17 +491,19 @@
   // ============================================
   // CARGAR OPERACIONES - Optimizado
   // ============================================
-  function refrescarTodo() {
-    cargarOperaciones();
-    cargarResumen();
+  function refrescarTodo(silent) {
+    cargarOperaciones(silent);
+    cargarResumen(silent);
   }
 
-  function cargarOperaciones() {
+  function cargarOperaciones(silent) {
     console.log("Cargando operaciones...");
-    raf(() => {
-      DOM.activasContainer.innerHTML = '<div class="loading-inline"><div class="spinner"></div><p>Obteniendo operaciones...</p></div>';
-      DOM.historialContainer.innerHTML = '<div class="loading-inline"><div class="spinner"></div><p>Obteniendo historial...</p></div>';
-    });
+    if (!silent) {
+      raf(() => {
+        DOM.activasContainer.innerHTML = '<div class="loading-inline"><div class="spinner"></div><p>Obteniendo operaciones...</p></div>';
+        DOM.historialContainer.innerHTML = '<div class="loading-inline"><div class="spinner"></div><p>Obteniendo historial...</p></div>';
+      });
+    }
 
     google.script.run
       .withSuccessHandler(renderizarOperaciones)
@@ -532,11 +525,13 @@
     }
   }
 
-  function cargarResumen() {
+  function cargarResumen(silent) {
     console.log("Cargando resumen...");
-    raf(() => {
-      DOM.resumenContainer.innerHTML = '<div class="loading-inline"><div class="spinner"></div><p>Actualizando resumen...</p></div>';
-    });
+    if (!silent) {
+      raf(() => {
+        DOM.resumenContainer.innerHTML = '<div class="loading-inline"><div class="spinner"></div><p>Actualizando resumen...</p></div>';
+      });
+    }
 
     google.script.run
       .withSuccessHandler(renderizarResumen)
@@ -608,7 +603,7 @@
       const montoFormateado = formatearMonto(op.monto, op.moneda);
       const badgeClass = getBadgeClass(op.tipoOperacion);
       const moneda = op.moneda ? String(op.moneda) : "USDT";
-      const monedaKey = moneda.toLowerCase().replace(/[^a-z]/g, "");
+      const monedaKey = getMonedaKey(moneda);
       const interesStr = formatearInteres(op.interes, moneda);
 
       const totalNum = parseFloat(op.total) || 0;
@@ -726,22 +721,11 @@
       const badgeClass = getBadgeClass(op.tipoOperacion);
       const moneda = op.moneda ? String(op.moneda) : "USDT";
       const monedaFinal = op.monedaFinal ? String(op.monedaFinal) : "-";
-      const monedaKey = moneda.toLowerCase().replace(/[^a-z]/g, "");
-      const monedaFinalKey = monedaFinal.toLowerCase().replace(/[^a-z]/g, "");
+      const monedaKey = getMonedaKey(moneda);
       const interesStr = formatearInteres(op.interes, moneda);
 
       // Total: siempre USDT 2 decimales
-      const totalStr =
-        op.total !== null &&
-        op.total !== undefined &&
-        op.total !== "" &&
-        !isNaN(Number(op.total))
-          ? "$" +
-            parseFloat(op.total).toLocaleString("es-ES", {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })
-          : "-";
+      const totalStr = formatearTotal(op.total);
       const finalStr = formatearFinal(
         op.final,
         monedaFinal !== "-" ? monedaFinal : moneda,
@@ -819,7 +803,7 @@
                 opRow.style.transform = "translateX(50px)";
               }
               showAlert("success", "Operación completada correctamente");
-              setTimeout(() => refrescarTodo(), 300);
+              setTimeout(() => refrescarTodo(true), 300);
             } else {
               if (opRow) opRow.classList.remove("row-completing");
               showAlert(
@@ -867,7 +851,7 @@
           .withSuccessHandler(function (response) {
             if (response && response.success) {
               showAlert("success", "Operación eliminada");
-              refrescarTodo();
+              refrescarTodo(true);
             } else {
               if (opRow) {
                 opRow.style.display = "";
@@ -879,7 +863,7 @@
           .withFailureHandler(function (error) {
             if (opRow) opRow.style.display = "";
             showAlert("error", extraerMensaje(error, "Error de conexión"));
-            refrescarTodo();
+            refrescarTodo(true);
           })
           .eliminarOperacionFila(fila, currentSheet);
       },
@@ -967,8 +951,7 @@
     const moneda = op.moneda || "USDT";
     const monedaFinal = op.monedaFinal || "-";
 
-    const monedaKey = moneda.toLowerCase().replace(/[^a-z]/g, "");
-    const monedaFinalKey = monedaFinal.toLowerCase().replace(/[^a-z]/g, "");
+    const monedaKey = getMonedaKey(moneda);
 
     let html = `
     <div class="detail-item">
@@ -1011,17 +994,7 @@
       !esHistorial
         ? (() => {
             const interesStr = formatearInteres(op.interes, moneda);
-            const totalStr =
-              op.total !== null &&
-              op.total !== undefined &&
-              op.total !== "" &&
-              !isNaN(Number(op.total))
-                ? "$" +
-                  parseFloat(op.total).toLocaleString("es-ES", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })
-                : "-";
+            const totalStr = formatearTotal(op.total);
             return `
       <div class="detail-item">
         <div class="detail-label">Interés a Ganar</div>
@@ -1042,19 +1015,8 @@
   `;
 
     if (esHistorial) {
-      const monedaFinalKey = monedaFinal.toLowerCase().replace(/[^a-z]/g, "");
       const interesStr = formatearInteres(op.interes, moneda);
-      const totalStr =
-        op.total !== null &&
-        op.total !== undefined &&
-        op.total !== "" &&
-        !isNaN(Number(op.total))
-          ? "$" +
-            parseFloat(op.total).toLocaleString("es-ES", {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })
-          : "-";
+      const totalStr = formatearTotal(op.total);
       const finalStr = formatearFinal(
         op.final,
         monedaFinal !== "-" ? monedaFinal : moneda,
@@ -1712,6 +1674,21 @@
     return formatearNumero(valor);
   }
 
+  function formatearTotal(valor) {
+    return (
+      valor !== null &&
+      valor !== undefined &&
+      valor !== "" &&
+      !isNaN(Number(valor))
+    )
+      ? "$" +
+        parseFloat(valor).toLocaleString("es-ES", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      : "-";
+  }
+
   function formatearInteres(valor, moneda) {
     const mon = moneda || "USDT";
     if (
@@ -1729,6 +1706,10 @@
         maximumFractionDigits: 2,
       })
     );
+  }
+
+  function getMonedaKey(moneda) {
+    return String(moneda).toLowerCase().replace(/[^a-z]/g, "");
   }
 
   function getBadgeClass(tipoOperacion) {

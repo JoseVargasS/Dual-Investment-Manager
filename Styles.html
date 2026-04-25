@@ -1614,40 +1614,6 @@
     font-weight: 700;
   }
 
-/* Width adjustments for financial summary based on capital type */
-/* For CAPITAL 1 - 3 equal columns */
-.resumen-section:has(.resumen-grid > .resumen-card:nth-child(3)) .resumen-grid {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
-}
-.resumen-section:has(.resumen-grid > .resumen-card:nth-child(3)) .resumen-card {
-    max-width: none;
-    width: 100%;
-}
-
-/* For other capitals - single column with constrained width */
-.resumen-section:has(.resumen-grid > .resumen-card:only-child) .resumen-grid {
-    grid-template-columns: 1fr;
-}
-.resumen-section:has(.resumen-grid > .resumen-card:only-child) .resumen-card {
-    max-width: 500px; /* Increased from 350px for better visibility */
-    margin: 0 auto; /* Center it */
-}
-  .resumen-section:has(.resumen-grid > .resumen-card:nth-child(3))
-    .resumen-card {
-    max-width: none;
-    width: 100%;
-  }
-
-  /* For other capitals - single column with constrained width */
-  .resumen-section:has(.resumen-grid > .resumen-card:only-child) .resumen-grid {
-    grid-template-columns: 1fr;
-  }
-  .resumen-section:has(.resumen-grid > .resumen-card:only-child) .resumen-card {
-    max-width: 650px; /* Reduced from 450px */
-    margin: 0 auto; /* Center it */
-  }
-
   /* ==============================
      ALERTAS - GLASSMORPHISM
   ============================== */
@@ -3268,7 +3234,4 @@
      }
    }
 
-  .modal-content {
-    will-change: transform, opacity;
-  }
 </style>
