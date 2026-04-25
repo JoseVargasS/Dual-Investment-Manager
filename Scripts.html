@@ -61,23 +61,20 @@
     // Using cached DOM element
     DOM.formOperacion.addEventListener("submit", guardarOperacion);
 
+    // Función helper para crear listeners de limpieza de errores
+    const createClearErrorListener = (groupId) => () => clearFieldError(groupId);
+
     // Limpiar errores al interactuar con los campos
-    DOM.fechaInicio.addEventListener("input", () =>
-      clearFieldError("groupFecha"),
-    );
-    DOM.cex.addEventListener("change", () => clearFieldError("groupCex"));
-    DOM.monto.addEventListener("input", () => clearFieldError("groupMonto"));
+    DOM.fechaInicio.addEventListener("input", createClearErrorListener("groupFecha"));
+    DOM.cex.addEventListener("change", createClearErrorListener("groupCex"));
+    DOM.monto.addEventListener("input", createClearErrorListener("groupMonto"));
     DOM.moneda.addEventListener("change", () => {
       clearFieldError("groupMoneda");
       actualizarStepMonto(DOM.moneda.value);
     });
-    DOM.apr.addEventListener("input", () => clearFieldError("groupApr"));
-    DOM.tipoOperacion.addEventListener("change", () =>
-      clearFieldError("groupTipo"),
-    );
-    DOM.precioObjetivo.addEventListener("input", () =>
-      clearFieldError("groupPrecio"),
-    );
+    DOM.apr.addEventListener("input", createClearErrorListener("groupApr"));
+    DOM.tipoOperacion.addEventListener("change", createClearErrorListener("groupTipo"));
+    DOM.precioObjetivo.addEventListener("input", createClearErrorListener("groupPrecio"));
 
     if (DOM.modalDetalle) {
       DOM.modalDetalle.addEventListener("click", function (e) {
@@ -240,36 +237,41 @@
         optionsContainer.appendChild(customOpt);
       });
 
-      trigger.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const isOpen = optionsContainer.classList.contains("show");
+       // Función para cerrar todos los dropdowns
+       const closeAllDropdowns = () => {
+         document.querySelectorAll(".custom-options.show").forEach((opt) => {
+           opt.classList.remove("show");
+           opt.closest(".custom-select-container")?.classList.remove("open");
+           opt.closest(".card")?.classList.remove("dropdown-open");
+         });
+         document
+           .querySelectorAll(".custom-select-trigger.active")
+           .forEach((tr) => {
+             tr.classList.remove("active");
+           });
+       };
 
-        // Close all other open dropdowns first
-        document.querySelectorAll(".custom-options.show").forEach((opt) => {
-          opt.classList.remove("show");
-          opt.closest(".custom-select-container")?.classList.remove("open");
-          opt.closest(".card")?.classList.remove("dropdown-open");
-        });
-        document
-          .querySelectorAll(".custom-select-trigger.active")
-          .forEach((tr) => {
-            tr.classList.remove("active");
-          });
+       trigger.addEventListener("click", (e) => {
+         e.preventDefault();
+         e.stopPropagation();
+         const isOpen = optionsContainer.classList.contains("show");
 
-        if (!isOpen) {
-          optionsContainer.classList.add("show");
-          trigger.classList.add("active");
-          container.classList.add("open");
-          container.closest(".card")?.classList.add("dropdown-open");
-        } else {
-          // Si ya está abierto, lo cerramos
-          optionsContainer.classList.remove("show");
-          trigger.classList.remove("active");
-          container.classList.remove("open");
-          container.closest(".card")?.classList.remove("dropdown-open");
-        }
-      });
+         // Close all other open dropdowns first
+         closeAllDropdowns();
+
+         if (!isOpen) {
+           optionsContainer.classList.add("show");
+           trigger.classList.add("active");
+           container.classList.add("open");
+           container.closest(".card")?.classList.add("dropdown-open");
+         } else {
+           // Si ya está abierto, lo cerramos
+           optionsContainer.classList.remove("show");
+           trigger.classList.remove("active");
+           container.classList.remove("open");
+           container.closest(".card")?.classList.remove("dropdown-open");
+         }
+       });
 
       // Valor inicial
       seleccionarCEX("OKX");
@@ -331,158 +333,169 @@
   // ============================================
   // GUARDAR OPERACIÓN
   // ============================================
-  function guardarOperacion(e) {
-    e.preventDefault();
-    console.log("Guardando operación...");
+   // Función para validar todos los campos del formulario
+   function validarFormulario() {
+     // Limpiar errores previos
+     clearFormErrors();
 
-    // Limpiar errores previos
-    clearFormErrors();
+     const fechaInput = document.getElementById("fechaInicio").value;
+     if (!fechaInput) {
+       showFieldError("groupFecha", "errorFecha");
+       return { valid: false, field: "fechaInicio" };
+     }
 
-    showLoading("formLoading", true);
+     const [datePart, timePart] = fechaInput.split("T");
+     const hour = timePart.split(":")[0];
+     const fechaLocalExacta = datePart + "T" + hour + ":00";
 
-    try {
-      const fechaInput = document.getElementById("fechaInicio").value;
-      if (!fechaInput) {
-        showFieldError("groupFecha", "errorFecha");
-        showLoading("formLoading", false);
-        return;
-      }
+     const cex = document.getElementById("cex").value;
+     if (!cex) {
+       showFieldError("groupCex", "errorCex");
+       return { valid: false, field: "cex" };
+     }
 
-      const [datePart, timePart] = fechaInput.split("T");
-      const hour = timePart.split(":")[0];
-      const fechaLocalExacta = datePart + "T" + hour + ":00";
+     const monto = parseFloat(document.getElementById("monto").value);
+     if (!monto || isNaN(monto) || monto <= 0) {
+       showFieldError("groupMonto", "errorMonto");
+       return { valid: false, field: "monto" };
+     }
 
-      const cex = document.getElementById("cex").value;
-      const monto = parseFloat(document.getElementById("monto").value);
-      const moneda = document.getElementById("moneda").value;
-      const apr = parseFloat(document.getElementById("apr").value);
-      const tipoOperacion = document.getElementById("tipoOperacion").value;
-      const precioObjetivo = parseFloat(
-        document.getElementById("precioObjetivo").value,
-      );
+     const moneda = document.getElementById("moneda").value;
+     if (!moneda) {
+       showFieldError("groupMoneda", "errorMoneda");
+       return { valid: false, field: "moneda" };
+     }
 
-      if (!cex) {
-        showFieldError("groupCex", "errorCex");
-        showLoading("formLoading", false);
-        return;
-      }
-      if (!monto || isNaN(monto) || monto <= 0) {
-        showFieldError("groupMonto", "errorMonto");
-        showLoading("formLoading", false);
-        return;
-      }
-      if (!moneda) {
-        showFieldError("groupMoneda", "errorMoneda");
-        showLoading("formLoading", false);
-        return;
-      }
-      if (!apr || isNaN(apr) || apr <= 0) {
-        showFieldError("groupApr", "errorApr");
-        showLoading("formLoading", false);
-        return;
-      }
-      if (!tipoOperacion) {
-        showFieldError("groupTipo", "errorTipo");
-        showLoading("formLoading", false);
-        return;
-      }
-      if (!precioObjetivo || isNaN(precioObjetivo) || precioObjetivo <= 0) {
-        showFieldError("groupPrecio", "errorPrecio");
-        showLoading("formLoading", false);
-        return;
-      }
+     const apr = parseFloat(document.getElementById("apr").value);
+     if (!apr || isNaN(apr) || apr <= 0) {
+       showFieldError("groupApr", "errorApr");
+       return { valid: false, field: "apr" };
+     }
 
-      const datos = {
-        fechaInicio: fechaLocalExacta,
-        cex,
-        monto,
-        moneda,
-        apr,
-        tipoOperacion,
-        precioObjetivo,
-      };
+     const tipoOperacion = document.getElementById("tipoOperacion").value;
+     if (!tipoOperacion) {
+       showFieldError("groupTipo", "errorTipo");
+       return { valid: false, field: "tipoOperacion" };
+     }
 
-      console.log("Datos a enviar:", datos);
+     const precioObjetivo = parseFloat(
+       document.getElementById("precioObjetivo").value,
+     );
+     if (!precioObjetivo || isNaN(precioObjetivo) || precioObjetivo <= 0) {
+       showFieldError("groupPrecio", "errorPrecio");
+       return { valid: false, field: "precioObjetivo" };
+     }
 
-      if (!isGASAvailable()) {
-        showAlert("error", "No se pudo conectar con Google Apps Script");
-        showLoading("formLoading", false);
-        return;
-      }
+     return {
+       valid: true,
+       datos: {
+         fechaInicio: fechaLocalExacta,
+         cex,
+         monto,
+         moneda,
+         apr,
+         tipoOperacion,
+         precioObjetivo,
+       }
+     };
+   }
 
-      // Solo crear fila pendiente si no estamos editando
-      let pendingRowCreated = false;
-      if (!window.editandoFila) {
-        crearFilaPendiente(datos);
-        pendingRowCreated = true;
-      }
+   function guardarOperacion(e) {
+     e.preventDefault();
+     console.log("Guardando operación...");
 
-      const successHandler = function (response) {
-        showLoading("formLoading", false);
-        console.log("Respuesta servidor:", response);
-        if (response && response.success) {
-          showAlert(
-            "success",
-            window.editandoFila
-              ? "Operación actualizada correctamente"
-              : "Operación guardada correctamente",
-          );
+     showLoading("formLoading", true);
 
-          if (window.editandoFila) {
-            const submitBtn = document.querySelector(
-              '#formOperacion button[type="submit"]',
-            );
-            submitBtn.textContent = "Agregar Operación";
-            submitBtn.classList.remove("btn-warning");
+     try {
+       const validacion = validarFormulario();
+       if (!validacion.valid) {
+         showLoading("formLoading", false);
+         return;
+       }
 
-            const btnCancel = document.getElementById("btnCancelar");
-            if (btnCancel) btnCancel.style.display = "none";
+       const { datos } = validacion;
 
-            window.editandoFila = null;
-            document.getElementById("formOperacion").reset();
-            setFechaHoraActual();
-            clearFormErrors();
-          }
+       console.log("Datos a enviar:", datos);
 
-          // Cerrar el modal flotante después de guardar exitosamente
-          cerrarFormularioDirecto();
+       if (!isGASAvailable()) {
+         showAlert("error", "No se pudo conectar con Google Apps Script");
+         showLoading("formLoading", false);
+         return;
+       }
 
-          cargarOperaciones(true);
-          cargarResumen();
-        } else {
-          showAlert("error", extraerMensaje(response, "Error en el servidor"));
-          cargarOperaciones(true); // Recargar por si acaso para quitar la fila pendiente
-        }
-      };
+       // Solo crear fila pendiente si no estamos editando
+       let pendingRowCreated = false;
+       if (!window.editandoFila) {
+         crearFilaPendiente(datos);
+         pendingRowCreated = true;
+       }
 
-      const failureHandler = function (error) {
-        showLoading("formLoading", false);
-        console.error("Error de servidor:", error);
-        showAlert(
-          "error",
-          "Error: " + extraerMensaje(error, "Error desconocido"),
-        );
-        cargarOperaciones(true); // Recargar
-      };
+       const successHandler = function (response) {
+         showLoading("formLoading", false);
+         console.log("Respuesta servidor:", response);
+         if (response && response.success) {
+           showAlert(
+             "success",
+             window.editandoFila
+               ? "Operación actualizada correctamente"
+               : "Operación guardada correctamente",
+           );
 
-      if (window.editandoFila) {
-        datos.fila = window.editandoFila;
-        google.script.run
-          .withSuccessHandler(successHandler)
-          .withFailureHandler(failureHandler)
-          .actualizarOperacionFila(datos, currentSheet);
-      } else {
-        google.script.run
-          .withSuccessHandler(successHandler)
-          .withFailureHandler(failureHandler)
-          .agregarOperacion(datos, currentSheet);
-      }
-    } catch (error) {
-      console.error("Error en guardarOperacion:", error);
-      showLoading("formLoading", false);
-      showAlert("error", "Error: " + (error.message || "Error desconocido"));
-    }
-  }
+           if (window.editandoFila) {
+             const submitBtn = document.querySelector(
+               '#formOperacion button[type="submit"]',
+             );
+             submitBtn.textContent = "Agregar Operación";
+             submitBtn.classList.remove("btn-warning");
+
+             const btnCancel = document.getElementById("btnCancelar");
+             if (btnCancel) btnCancel.style.display = "none";
+
+             window.editandoFila = null;
+             document.getElementById("formOperacion").reset();
+             setFechaHoraActual();
+             clearFormErrors();
+           }
+
+           // Cerrar el modal flotante después de guardar exitosamente
+           cerrarFormularioDirecto();
+
+           cargarOperaciones(true);
+           cargarResumen();
+         } else {
+           showAlert("error", extraerMensaje(response, "Error en el servidor"));
+           cargarOperaciones(true); // Recargar por si acaso para quitar la fila pendiente
+         }
+       };
+
+       const failureHandler = function (error) {
+         showLoading("formLoading", false);
+         console.error("Error de servidor:", error);
+         showAlert(
+           "error",
+           "Error: " + extraerMensaje(error, "Error desconocido"),
+         );
+         cargarOperaciones(true); // Recargar
+       };
+
+       if (window.editandoFila) {
+         datos.fila = window.editandoFila;
+         google.script.run
+           .withSuccessHandler(successHandler)
+           .withFailureHandler(failureHandler)
+           .actualizarOperacionFila(datos, currentSheet);
+       } else {
+         google.script.run
+           .withSuccessHandler(successHandler)
+           .withFailureHandler(failureHandler)
+           .agregarOperacion(datos, currentSheet);
+       }
+     } catch (error) {
+       console.error("Error en guardarOperacion:", error);
+       showLoading("formLoading", false);
+       showAlert("error", "Error: " + (error.message || "Error desconocido"));
+     }
+   }
 
   // ============================================
   // CARGAR OPERACIONES - Optimizado
@@ -1104,14 +1117,14 @@
         if (options.highlightFn && options.highlightFn(label)) extraClasses = "highlight";
         if (options.editableRows && options.editableRows.includes(idx)) extraClasses = "editable";
 
-        card += `
-          <div class="resumen-item">
-            <span class="resumen-label">${sanitize(label)}</span>
-            <span class="resumen-value ${extraClasses}" 
-              ${extraClasses.includes("editable") ? `onclick="editarCelda(this, '${idx === 1 ? "B4" : "B6"}', '${sanitize(label)}')" data-note="${sanitize(data.notaB4 || data.notaB6 || "")}" data-formula="${sanitize(data.formulaB4 || data.formulaB6 || "")}"` : ""}>
-              ${sanitize(valor)}
-            </span>
-          </div>`;
+         card += `
+           <div class="resumen-item">
+             <span class="resumen-label">${sanitize(label)}</span>
+             <span class="resumen-value ${extraClasses}" 
+               ${extraClasses.includes("editable") ? `onclick="editarCelda(this, '${idx === 1 ? "B4" : "B6"}', '${sanitize(label)}')" data-note="${sanitize(idx === 1 ? data.notaB4 : data.notaB6)}" data-formula="${sanitize(idx === 1 ? data.formulaB4 : data.formulaB6)}"` : ""}>
+               ${sanitize(valor)}
+             </span>
+           </div>`;
       });
       card += "</div>";
       return card;

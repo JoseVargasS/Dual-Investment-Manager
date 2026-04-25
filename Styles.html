@@ -3215,41 +3215,58 @@
     padding: 20px 26px 26px;
   }
 
-  /* Responsive floating button */
-  @media (max-width: 480px) {
-    .btn-flotante-add {
-      bottom: 16px;
-      right: 16px;
-      width: 54px;
-      height: 54px;
-    }
+   /* Responsive floating button */
+   @media (max-width: 480px) {
+     .btn-flotante-add {
+       bottom: 16px;
+       right: 16px;
+       width: 54px;
+       height: 54px;
+     }
 
-    .btn-flotante-icon {
-      font-size: 1.8rem;
-    }
+     .btn-flotante-icon {
+       font-size: 1.8rem;
+     }
 
-    .modal-form {
-      margin: 10px;
-      border-radius: 16px;
-      max-height: 85vh;
-    }
+     .modal-form {
+       margin: 10px;
+       border-radius: 16px;
+       max-height: 85vh;
+     }
 
-    .modal-form-header {
-      padding: 11px 20px;
-    }
+     .modal-form-header {
+       padding: 11px 20px;
+     }
 
-    .modal-form-title {
-      font-size: 1rem;
-    }
+     .modal-form-title {
+       font-size: 1rem;
+     }
 
-    .modal-form .form-grid {
-      padding: 14px 20px;
-    }
+     .modal-form .form-grid {
+       padding: 14px 20px;
+     }
 
-    .modal-form .form-actions {
-      padding: 0 20px 16px;
-    }
-  }
+     .modal-form .form-actions {
+       padding: 0 20px 16px;
+     }
+   }
+
+   /* Mobile adjustments for financial summary */
+   @media (max-width: 768px) {
+     /* For CAPITAL 1 on mobile - stack vertically */
+     .resumen-section:has(.resumen-grid > .resumen-card:nth-child(3)) .resumen-grid {
+       grid-template-columns: 1fr !important;
+     }
+     .resumen-section:has(.resumen-grid > .resumen-card:nth-child(3)) .resumen-card {
+       max-width: none !important;
+       width: 100% !important;
+       margin-bottom: 16px !important; /* Add space between stacked cards */
+     }
+     /* Remove margin on last card */
+     .resumen-section:has(.resumen-grid > .resumen-card:nth-child(3)) .resumen-card:last-child {
+       margin-bottom: 0 !important;
+     }
+   }
 
   .modal-content {
     will-change: transform, opacity;
