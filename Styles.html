@@ -1496,16 +1496,37 @@
     gap: 16px;
   }
 
-  .resumen-card {
+/* Base styles for resumen cards */
+.resumen-card {
     background: var(--table-container-bg);
     border: 1px solid var(--card-border);
     border-radius: var(--radius-lg);
     padding: 20px;
     transition: var(--transition-normal);
     contain: layout style;
-    max-width: 450px;
-    margin: 0 auto;
-  }
+    /* Remove max-width from base to allow our specific rules to control it */
+}
+
+/* Width adjustments for financial summary based on capital type */
+/* For CAPITAL 1 - 3 equal columns */
+.resumen-section:has(.resumen-grid > .resumen-card:nth-child(3)) .resumen-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+}
+.resumen-section:has(.resumen-grid > .resumen-card:nth-child(3)) .resumen-card {
+    max-width: none !important;
+    width: 100% !important;
+}
+
+/* For other capitals - single column with constrained width */
+.resumen-section:has(.resumen-grid > .resumen-card:only-child) .resumen-grid {
+    grid-template-columns: 1fr;
+}
+.resumen-section:has(.resumen-grid > .resumen-card:only-child) .resumen-card {
+    max-width: 600px !important; /* Increased for better visibility */
+    margin: 0 auto !important; /* Center it */
+    width: 100%; /* Ensure it takes full width up to max-width */
+}
 
   .resumen-card:hover {
     border-color: var(--card-border-hover);
@@ -1591,6 +1612,40 @@
     color: var(--primary);
     font-size: 20px;
     font-weight: 700;
+  }
+
+/* Width adjustments for financial summary based on capital type */
+/* For CAPITAL 1 - 3 equal columns */
+.resumen-section:has(.resumen-grid > .resumen-card:nth-child(3)) .resumen-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+}
+.resumen-section:has(.resumen-grid > .resumen-card:nth-child(3)) .resumen-card {
+    max-width: none;
+    width: 100%;
+}
+
+/* For other capitals - single column with constrained width */
+.resumen-section:has(.resumen-grid > .resumen-card:only-child) .resumen-grid {
+    grid-template-columns: 1fr;
+}
+.resumen-section:has(.resumen-grid > .resumen-card:only-child) .resumen-card {
+    max-width: 500px; /* Increased from 350px for better visibility */
+    margin: 0 auto; /* Center it */
+}
+  .resumen-section:has(.resumen-grid > .resumen-card:nth-child(3))
+    .resumen-card {
+    max-width: none;
+    width: 100%;
+  }
+
+  /* For other capitals - single column with constrained width */
+  .resumen-section:has(.resumen-grid > .resumen-card:only-child) .resumen-grid {
+    grid-template-columns: 1fr;
+  }
+  .resumen-section:has(.resumen-grid > .resumen-card:only-child) .resumen-card {
+    max-width: 650px; /* Reduced from 450px */
+    margin: 0 auto; /* Center it */
   }
 
   /* ==============================
@@ -2403,8 +2458,14 @@
   }
 
   @keyframes slideUp {
-    from { transform: translateY(20px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
+    from {
+      transform: translateY(20px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
   }
 
   /* ==============================
