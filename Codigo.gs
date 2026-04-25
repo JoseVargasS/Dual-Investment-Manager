@@ -421,6 +421,20 @@ function completarOperacion(fila, monedaFinal, sheetName) {
     sheet.getRange(r, COL.FINAL_OBT_VAL).setFormula(valFormula);
     sheet.getRange(r, COL.FINAL_OBT_MON).setValue(monedaFinal);
     
+    // Set number format for column T (FINAL_OBT_VAL)
+    if (monedaFinal === "USDT") {
+      sheet.getRange(r, COL.FINAL_OBT_VAL).setNumberFormat("$#,##0.00");
+    } else {
+      sheet.getRange(r, COL.FINAL_OBT_VAL).setNumberFormat("0.000000");
+    }
+
+    // Update column Q (Final Obtenido) format too
+    if (monedaFinal === "USDT") {
+      sheet.getRange(r, 17).setNumberFormat("$#,##0.00");
+    } else {
+      sheet.getRange(r, 17).setNumberFormat("0.000000");
+    }
+    
     SpreadsheetApp.flush();
     return { success: true, message: "Operación completada correctamente" };
   } catch (error) {
