@@ -7,10 +7,10 @@
 // CONFIGURACIÓN
 // ============================================
 const SPREADSHEET_ID = "1g9JBdaZ7eAAhaEjUf5pQs2YEzKAR2QYANXAJHMz0oJc";
-const SHEET_NAME = "PRESTAMO";
+const SHEET_NAME = "CAPITAL 1";
 
-// Los datos individuales empiezan en fila 20
-const FIRST_DATA_ROW = 20;
+// Los datos individuales empiezan en fila 16
+const FIRST_DATA_ROW = 16;
 
 // Columnas (1-indexado)
 // E=FECHA INICIO, F=FECHA FIN, G=CEX, H=MONTO, I=MONEDA
@@ -384,9 +384,9 @@ function obtenerResumen() {
       Logger.log("Error E2:F5: " + e);
     }
     try {
-      cuadro3 = sheet.getRange("E7:F12").getDisplayValues();
+      cuadro3 = sheet.getRange("H2:J8").getDisplayValues();
     } catch (e) {
-      Logger.log("Error E7:F12: " + e);
+      Logger.log("Error H2:J8: " + e);
     }
 
     // Obtener notas y fórmulas de celdas editables

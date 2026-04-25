@@ -58,14 +58,14 @@ Dual Investment Manager/
 
 La app usa **1 pestaña principal**:
 
-#### Pestaña: `PRESTAMO`
+#### Pestaña: `CAPITAL 1`
 
 | Fila   | Contenido                                 |
 | ------ | ----------------------------------------- |
 | 1-15   | Reserved (totales y configuraciones)      |
 | 16-17  | Encabezados de sección                    |
 | **18** | Headers de columnas                       |
-| **20** | **Inicio de datos (FIRST_DATA_ROW = 20)** |
+| **16** | **Inicio de datos (FIRST_DATA_ROW = 16)** |
 | 21+    | Operaciones activas/completadas           |
 
 ##### Estructura de Columnas (Desde columna E = columna 5):
@@ -202,12 +202,12 @@ El UI usa efectos **glassmorphism** modernos con optimizaciones de rendimiento:
 
 1. Verifica que la app esté desplegada correctamente
 2. Confirma el SPREADSHEET_ID en Codigo.gs coincida con tu hoja
-3. Verifica que la pestaña se llame exactamente "PRESTAMO"
+3. Verifica que la pestaña se llame exactamente "CAPITAL 1"
 4. Revisa los permisos de ejecución en Apps Script
 
 ### Error: "No hay operaciones"
 
-1. Verifica que los datos empiecen en fila 20 (FIRST_DATA_ROW)
+1. Verifica que los datos empiecen en fila 16 (FIRST_DATA_ROW)
 2. Confirma que las columnas E a W existan
 3. Revisa los encabezados en fila 18
 
@@ -228,8 +228,8 @@ El UI usa efectos **glassmorphism** modernos con optimizaciones de rendimiento:
 ### Backend (Codigo.gs - Optimizado)
 
 - **SPREADSHEET_ID**: ID único de la hoja
-- **SHEET_NAME**: Nombre de la pestaña principal ("PRESTAMO")
-- **FIRST_DATA_ROW**: Fila inicial de datos (20)
+- **SHEET_NAME**: Nombre de la pestaña principal ("CAPITAL 1")
+- **FIRST_DATA_ROW**: Fila inicial de datos (16)
 - **Columnas**: E (5) a W (23)
 - **Batch operations**: Formateo y escritura en lotes
 - **Cache**: Cache de tasa de cambio (10 minutos)
