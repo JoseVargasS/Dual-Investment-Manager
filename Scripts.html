@@ -3,6 +3,8 @@
   // VARIABLES GLOBALES - Optimized
   // ============================================
   let operacionesData = { activas: [], completadas: [] };
+  let currentSheet = "CAPITAL 1";
+  const DEFAULT_SHEET_NAME = "CAPITAL 1";
 
   // Cache de elementos DOM frecuentes
   const DOM = {};
@@ -101,6 +103,7 @@
 
     // Pequeño retardo para que google.script.run esté disponible
     setTimeout(function () {
+      cargarCapitanes(); // Cargar lista de pestañas/capitales
       cargarOperaciones();
       cargarResumen();
     }, 100);
@@ -467,12 +470,12 @@
         google.script.run
           .withSuccessHandler(successHandler)
           .withFailureHandler(failureHandler)
-          .actualizarOperacionFila(datos);
+          .actualizarOperacionFila(datos, currentSheet);
       } else {
         google.script.run
           .withSuccessHandler(successHandler)
           .withFailureHandler(failureHandler)
-          .agregarOperacion(datos);
+          .agregarOperacion(datos, currentSheet);
       }
     } catch (error) {
       console.error("Error en guardarOperacion:", error);
@@ -484,103 +487,50 @@
   // ============================================
   // CARGAR OPERACIONES - Optimizado
   // ============================================
-  function cargarOperaciones(silencioso = false) {
-    const activasCont =
-      DOM.activasContainer || document.getElementById("activasContainer");
-    const historialCont =
-      DOM.historialContainer || document.getElementById("historialContainer");
+  function refrescarTodo() {
+    cargarOperaciones();
+    cargarResumen();
+  }
 
-    if (!silencioso && activasCont && historialCont) {
-      const skeletonTable = (cols) => {
-        let rows = "";
-        for (let i = 0; i < 4; i++) {
-          let cells = "";
-          for (let j = 0; j < cols; j++) {
-            cells += '<td><div class="skeleton skeleton-row"></div></td>';
-          }
-          rows += "<tr>" + cells + "</tr>";
-        }
-        return (
-          '<div class="table-container"><table><tbody>' +
-          rows +
-          "</tbody></table></div>"
-        );
-      };
-      activasCont.innerHTML = skeletonTable(9);
-      historialCont.innerHTML = skeletonTable(11);
-    }
-
-    if (!isGASAvailable()) {
-      mostrarErrorCarga("No se pudo conectar con Google Apps Script.");
-      return;
-    }
+  function cargarOperaciones() {
+    console.log("Cargando operaciones...");
+    raf(() => {
+      DOM.activasContainer.innerHTML = '<div class="loading-inline"><div class="spinner"></div><p>Obteniendo operaciones...</p></div>';
+      DOM.historialContainer.innerHTML = '<div class="loading-inline"><div class="spinner"></div><p>Obteniendo historial...</p></div>';
+    });
 
     google.script.run
-      .withSuccessHandler(function (response) {
-        if (response && response.success) {
-          operacionesData = response;
-
-          // Usar RAF para renderizar
-          raf(() => {
-            renderizarActivas(response.activas || []);
-            renderizarHistorial(response.completadas || []);
-          });
-
-          // Establecer monto y moneda predeterminado del ultimo ingreso del historial
-          const completadas = response.completadas || [];
-          if (completadas.length > 0) {
-            const ultima = completadas[completadas.length - 1];
-            const montoInput = DOM.monto || document.getElementById("monto");
-            const monedaSelect =
-              DOM.moneda || document.getElementById("moneda");
-            const tipoOperacionSelect =
-              DOM.tipoOperacion || document.getElementById("tipoOperacion");
-
-            // Establecer monto = final obtenido (con decimales según moneda)
-            if (montoInput && ultima.final) {
-              const montoValue = parseFloat(ultima.final);
-              if (
-                ultima.monedaFinal === "ETH" ||
-                ultima.monedaFinal === "BTC"
-              ) {
-                // 6 decimales para ETH y BTC
-                montoInput.value = montoValue.toFixed(6);
-              } else {
-                // 2 decimales para USDT u otras monedas
-                montoInput.value = montoValue.toFixed(2);
-              }
-            }
-
-            // Establecer moneda = moneda final del ultimo ingreso
-            if (monedaSelect && ultima.monedaFinal) {
-              monedaSelect.value = ultima.monedaFinal;
-
-              // Actualizar el step del monto según la moneda
-              actualizarStepMonto(ultima.monedaFinal);
-            }
-
-            // Auto-seleccionar tipo de operacion basado en la moneda final
-            if (tipoOperacionSelect && ultima.monedaFinal) {
-              const monedaFinalUpper = ultima.monedaFinal.toUpperCase();
-              if (monedaFinalUpper === "ETH") {
-                tipoOperacionSelect.value = "Sell ETH high";
-              } else if (monedaFinalUpper === "BTC") {
-                tipoOperacionSelect.value = "Sell BTC high";
-              }
-            }
-          }
-        } else {
-          mostrarErrorCarga(
-            extraerMensaje(response, "Error al cargar operaciones"),
-          );
-        }
-      })
+      .withSuccessHandler(renderizarOperaciones)
       .withFailureHandler(function (error) {
-        mostrarErrorCarga(
-          extraerMensaje(error, "Error al conectar con el servidor"),
-        );
+        showAlert("error", "Error al cargar operaciones: " + error);
       })
-      .obtenerOperaciones();
+      .obtenerOperaciones(currentSheet);
+  }
+
+  function renderizarOperaciones(response) {
+    if (response && response.success) {
+      operacionesData = response;
+      raf(() => {
+        renderizarActivas(response.activas || []);
+        renderizarHistorial(response.completadas || []);
+      });
+    } else {
+      showAlert("error", response ? response.message : "Error al cargar operaciones");
+    }
+  }
+
+  function cargarResumen() {
+    console.log("Cargando resumen...");
+    raf(() => {
+      DOM.resumenContainer.innerHTML = '<div class="loading-inline"><div class="spinner"></div><p>Actualizando resumen...</p></div>';
+    });
+
+    google.script.run
+      .withSuccessHandler(renderizarResumen)
+      .withFailureHandler(function (error) {
+        showAlert("error", "Error al cargar resumen: " + error);
+      })
+      .obtenerResumen(currentSheet);
   }
 
   function mostrarErrorCarga(mensaje) {
@@ -659,21 +609,8 @@
             })
           : "-";
 
-      const m = Math.round(
-        parseFloat(String(op.tiempoCex || "0").replace(/[^\d.-]/g, "")) || 0,
-      );
-      const o = Math.round(
-        parseFloat(String(op.duracion || "0").replace(/[^\d.-]/g, "")) || 0,
-      );
-
-      let duracionLimpia = "";
-      if (m > 0) {
-        duracionLimpia = m + " día";
-      } else if (o > 0) {
-        duracionLimpia = o + " horas";
-      }
-      const duracionBadge = duracionLimpia
-        ? `<div class="badge-duration">${duracionLimpia}</div>`
+      const duracionBadge = op.tiempoCex
+        ? `<div class="badge-duration">${op.tiempoCex}</div>`
         : "";
 
       html += `
@@ -797,22 +734,8 @@
         monedaFinal !== "-" ? monedaFinal : moneda,
       );
 
-      // Formatear duración: si M > 0 usa dias, si no usa horas de O
-      const m_h = Math.round(
-        parseFloat(String(op.tiempoCex || "0").replace(/[^\d.-]/g, "")) || 0,
-      );
-      const o_h = Math.round(
-        parseFloat(String(op.duracion || "0").replace(/[^\d.-]/g, "")) || 0,
-      );
-
-      let duracionLimpia = "";
-      if (m_h > 0) {
-        duracionLimpia = m_h + " día";
-      } else if (o_h > 0) {
-        duracionLimpia = o_h + " horas";
-      }
-      const duracionBadge = duracionLimpia
-        ? `<div class="badge-duration">${duracionLimpia}</div>`
+      const duracionBadge = op.tiempoCex
+        ? `<div class="badge-duration">${op.tiempoCex}</div>`
         : "";
 
       html += `
@@ -863,7 +786,6 @@
           return;
         }
 
-        // Animación visual antes de recargar
         const opRow = document.querySelector(
           `.operacion-row[data-fila='${fila}']`,
         );
@@ -878,14 +800,13 @@
         google.script.run
           .withSuccessHandler(function (response) {
             if (response && response.success) {
-              // Animación de éxito
               if (opRow) {
                 opRow.classList.add("row-complete-success");
                 opRow.style.opacity = "0";
                 opRow.style.transform = "translateX(50px)";
               }
               showAlert("success", "Operación completada correctamente");
-              setTimeout(() => cargarOperaciones(true), 300);
+              setTimeout(() => refrescarTodo(), 300);
             } else {
               if (opRow) opRow.classList.remove("row-completing");
               showAlert(
@@ -903,7 +824,7 @@
             );
             selectElement.value = "";
           })
-          .completarOperacion(fila, monedaFinal);
+          .completarOperacion(fila, monedaFinal, currentSheet);
       },
       function () {
         selectElement.value = "";
@@ -920,13 +841,11 @@
           return;
         }
 
-        // Feedback visual inmediato (Efecto de cristal roto)
         const opRow = document.querySelector(
           `.operacion-row[data-fila='${fila}']`,
         );
         if (opRow) {
           shatterElement(opRow);
-          // Lo ocultamos inmediatamente para que no se quede "congelado"
           opRow.style.display = "none";
           opRow.classList.add("row-deleting");
         }
@@ -935,9 +854,7 @@
           .withSuccessHandler(function (response) {
             if (response && response.success) {
               showAlert("success", "Operación eliminada");
-              // Actualización silenciosa en segundo plano
-              cargarOperaciones(true);
-              cargarResumen(true);
+              refrescarTodo();
             } else {
               if (opRow) {
                 opRow.style.display = "";
@@ -949,9 +866,9 @@
           .withFailureHandler(function (error) {
             if (opRow) opRow.style.display = "";
             showAlert("error", extraerMensaje(error, "Error de conexión"));
-            cargarOperaciones(true);
+            refrescarTodo();
           })
-          .eliminarOperacionFila(fila);
+          .eliminarOperacionFila(fila, currentSheet);
       },
     );
   }
@@ -963,7 +880,6 @@
     if (!op) return;
 
     if (op.fechaInicio) {
-      // El servidor envía "yyyy-MM-dd HH:mm:ss". datetime-local requiere "yyyy-MM-ddTHH:mm"
       const rawLocal = op.fechaInicio.replace(" ", "T").substring(0, 16);
       document.getElementById("fechaInicio").value = rawLocal;
     }
@@ -987,14 +903,13 @@
     }
     showAlert(
       "info",
-      '<i data-lucide="pencil" style="width:16px; height:16px; display:inline; vertical-align:middle; margin-right:4px;"></i> Modo edición activado. Modifica los campos y pulsa "Actualizar".',
+      "Modo edición activado. Modifica los campos y pulsa 'Actualizar'.",
       5000,
     );
 
     const btnCancel = document.getElementById("btnCancelar");
     if (btnCancel) btnCancel.style.display = "inline-block";
 
-    // Mostrar el modal flotante en lugar de scroll
     mostrarFormulario();
   }
 
@@ -1015,11 +930,9 @@
     const btnCancel = document.getElementById("btnCancelar");
     if (btnCancel) btnCancel.style.display = "none";
 
-    // Ocultar alerta de info
     const alertInfo = document.getElementById("alertInfo");
     if (alertInfo) alertInfo.classList.remove("show");
 
-    // Cerrar el modal flotante si está abierto
     cerrarFormularioDirecto();
   }
 
@@ -1041,7 +954,6 @@
     const moneda = op.moneda || "USDT";
     const monedaFinal = op.monedaFinal || "-";
 
-    // Asegurar que moneda y monedaFinal siempre sean strings
     const monedaKey = moneda.toLowerCase().replace(/[^a-z]/g, "");
     const monedaFinalKey = monedaFinal.toLowerCase().replace(/[^a-z]/g, "");
 
@@ -1176,291 +1088,248 @@
   // ============================================
   // RESUMEN
   // ============================================
-  function cargarResumen(isSilent) {
-    const container = document.getElementById("resumenContainer");
-    if (container && !isSilent) {
-      container.innerHTML = `
-      <div class="card skeleton-card" style="grid-column: 1/-1; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.02);">
-        <div class="skeleton" style="width: 80%; height: 20px; margin-bottom: 20px;"></div>
-        <div class="skeleton" style="width: 60%; height: 30px;"></div>
-      </div>
-      <div class="card skeleton-card" style="display: flex; flex-direction: column; gap: 15px;">
-        <div class="skeleton" style="width: 100%; height: 40px;"></div>
-        <div class="skeleton" style="width: 80%; height: 20px;"></div>
-      </div>
-      <div class="card skeleton-card" style="display: flex; flex-direction: column; gap: 15px;">
-        <div class="skeleton" style="width: 100%; height: 40px;"></div>
-        <div class="skeleton" style="width: 80%; height: 20px;"></div>
-      </div>
-    `;
-    }
-
-    if (!isGASAvailable()) {
-      console.error("google.script.run no está disponible para resumen");
-      mostrarErrorResumen("No se pudo conectar con Google Apps Script");
-      return;
-    }
-
-    google.script.run
-      .withSuccessHandler(function (response) {
-        console.log("Resumen recibido:", response);
-        if (response && response.success) {
-          renderizarResumen(response);
-        } else {
-          mostrarErrorResumen(
-            extraerMensaje(response, "Error al cargar resumen"),
-          );
-        }
-      })
-      .withFailureHandler(function (error) {
-        console.error("Error withFailureHandler cargarResumen:", error);
-        mostrarErrorResumen(
-          extraerMensaje(error, "Error al conectar con el servidor"),
-        );
-      })
-      .obtenerResumen();
-  }
-
-  function mostrarErrorResumen(mensaje) {
-    const container = document.getElementById("resumenContainer");
-    if (container) {
-      container.innerHTML = `
-      <div class="error-state" style="grid-column:1/-1;">
-        <i data-lucide="bar-chart-2" class="error-state-icon" style="width:48px; height:48px;"></i>
-        <h3><i data-lucide="alert-triangle" style="width:20px; height:20px; display:inline; vertical-align:middle; margin-right:6px;"></i> Error al cargar resumen</h3>
-        <p>${sanitize(mensaje)}</p>
-        <button onclick="cargarResumen()" class="btn btn-primary" style="margin-top:4px;">
-<i data-lucide="rotate-cw" style="width:16px; height:16px;"></i> Reintentar
-        </button>
-      </div>
-    `;
-    lucide.createIcons();
-    }
-  }
-
   function renderizarResumen(data) {
-    const container = document.getElementById("resumenContainer");
-    if (!container) return;
+    console.log("Renderizando resumen...");
+    if (!DOM.resumenContainer) return;
+    DOM.resumenContainer.classList.remove("show");
 
-    // Los valores de getDisplayValues() ya vienen formateados por la hoja:
-    // fechas como "26/02/2026", porcentajes como "15.22%", moneda como "$17,942.84"
-    // Solo necesitamos mostrarlos tal como llegan.
-    function buildCard(titulo, filas, opts) {
-      opts = opts || {};
-      let card = '<div class="resumen-card"><h3>' + titulo + "</h3>";
-      filas.forEach(function (row, index) {
-        // row[0] = etiqueta, row[1] = valor (ambos strings de getDisplayValues)
-        const etiqueta = row[0] ? String(row[0]).trim() : "";
-        if (!etiqueta) return;
-        const valor =
-          row[1] !== null && row[1] !== "" ? String(row[1]).trim() : "-";
-        const isEditable =
-          opts.editableRows && opts.editableRows.includes(index);
-        const isHighlight = opts.highlightFn
-          ? opts.highlightFn(etiqueta, valor)
-          : false;
-        const isSuccess = opts.successFn
-          ? opts.successFn(etiqueta, valor)
-          : false;
+    function buildCard(title, rows, options = {}) {
+      let card = `<div class="resumen-card"><h3>${title}</h3>`;
+      rows.forEach((row, idx) => {
+        const label = String(row[0] || "");
+        if (!label.trim()) return;
+        const valor = row[1] !== null && row[1] !== "" ? String(row[1]).trim() : "-";
+        
+        let extraClasses = "";
+        if (options.highlightFn && options.highlightFn(label)) extraClasses = "highlight";
+        if (options.editableRows && options.editableRows.includes(idx)) extraClasses = "editable";
 
-        let note = "";
-        let celdaRef = "";
-        let formula = "";
-        if (isEditable) {
-          celdaRef = index === 1 ? "B4" : "B6";
-          let rawNote = index === 1 ? data.notaB4 : data.notaB6;
-          formula = index === 1 ? data.formulaB4 : data.formulaB6;
-          if (rawNote) {
-            note = rawNote
-              .trim()
-              .replace(/\. (?=[0-9])/g, "\n")
-              .replace(/\.$/, "");
-          }
-        }
-        const cls = isEditable
-          ? "editable"
-          : isSuccess
-            ? "success"
-            : isHighlight
-              ? "highlight"
-              : "";
         card += `
-        <div class="resumen-item">
-          <span class="resumen-label">${sanitize(etiqueta)}</span>
-          <span class="resumen-value ${cls}"
-                ${isEditable && note ? `data-note="${sanitize(note)}"` : ""}
-                ${isEditable && formula ? `data-formula="${sanitize(formula)}"` : ""}
-                ${isEditable && note ? `onmouseenter="showAppTooltip(this)" onmouseleave="hideAppTooltip()"` : ""}
-                ${isEditable ? `onclick="editarCelda(this, '${celdaRef}', '${sanitize(etiqueta)}')"` : ""}>
-            ${sanitize(valor)}
-          </span>
-        </div>`;
+          <div class="resumen-item">
+            <span class="resumen-label">${sanitize(label)}</span>
+            <span class="resumen-value ${extraClasses}" 
+              ${extraClasses.includes("editable") ? `onclick="editarCelda(this, '${idx === 1 ? "B4" : "B6"}', '${sanitize(label)}')" data-note="${sanitize(data.notaB4 || data.notaB6 || "")}" data-formula="${sanitize(data.formulaB4 || data.formulaB6 || "")}"` : ""}>
+              ${sanitize(valor)}
+            </span>
+          </div>`;
       });
       card += "</div>";
       return card;
     }
 
     let html = "";
-
-    // Cuadro 1 (A3:B11) — Resumen BBVA
-    if (data.cuadro1 && data.cuadro1.length > 0) {
-      html += buildCard(" Resumen BBVA", data.cuadro1, {
-        editableRows: [1, 3], // B4 (Cantidad) y B6 (Monto cuota)
-      });
-    }
-
-    // Cuadro 2 (E2:F5) — Objetivos
-    if (data.cuadro2 && data.cuadro2.length > 0) {
-      html += buildCard(" Objetivos", data.cuadro2, {
-        highlightFn: function (label) {
-          return (
-            label.toLowerCase().includes("min") ||
-            label.toLowerCase().includes("mín")
-          );
-        },
-      });
-    }
-
-    // Cuadro 3 (E7:F12) — Resultados con calculadora interactiva
-    if (data.cuadro3 && data.cuadro3.length > 0) {
-      const rows = data.cuadro3;
-      // Extraer valores: Capital Inicial (E7), NET PROFIT (E8), %APR (E9), Días (E10), Retiro mensual (E11), Capital Final (E12)
-      function parseNum(str) {
-        if (!str || str === "-") return 0;
-        return (
-          parseFloat(
-            String(str)
-              .replace(/[$,%\s]/g, "")
-              .replace(",", "."),
-          ) || 0
-        );
+    
+    // Si es la pestaña principal, mostrar el diseño original
+    if (currentSheet === DEFAULT_SHEET_NAME) {
+      if (data.cuadro1 && data.cuadro1.length > 0) {
+        html += buildCard(" Resumen BBVA", data.cuadro1, { editableRows: [1, 3] });
       }
-      const capitalInicial = parseNum(rows[0] ? rows[0][2] : "0");
-      const netProfit = parseNum(rows[1] ? rows[1][2] : "0");
-      const promedioDiarioStr = rows[2] ? String(rows[2][2]).trim() : "-";
-      const aprVal = parseNum(rows[3] ? rows[3][2] : "0");
-      const diasVal = parseNum(rows[4] ? rows[4][2] : "0");
-      const retiroVal = parseNum(rows[5] ? rows[5][2] : "0");
-      const capitalFinal = parseNum(rows[6] ? rows[6][2] : "0");
+      if (data.cuadro2 && data.cuadro2.length > 0) {
+        html += buildCard(" Objetivos", data.cuadro2, {
+          highlightFn: (l) => l.toLowerCase().includes("min") || l.toLowerCase().includes("mín")
+        });
+      }
+      
+      if (data.cuadro3 && data.cuadro3.length > 0) {
+        const rows = data.cuadro3;
+        function parseNum(str) {
+          if (!str || str === "-") return 0;
+          return parseFloat(String(str).replace(/[$,%\s]/g, "").replace(",", ".")) || 0;
+        }
+        const ci = parseNum(rows[0] ? rows[0][2] : "0");
+        const netProfit = parseNum(rows[1] ? rows[1][2] : "0");
+        const promedioStr = rows[2] ? String(rows[2][2]).trim() : "-";
+        const aprVal = parseNum(rows[3] ? rows[3][2] : "0");
+        const diasVal = parseNum(rows[4] ? rows[4][2] : "0");
+        const retiroVal = parseNum(rows[5] ? rows[5][2] : "0");
+        const capFinal = parseNum(rows[6] ? rows[6][2] : "0");
 
-      const netProfitStr = rows[1] ? String(rows[1][2]).trim() : "-";
-      const capInicStr = rows[0] ? String(rows[0][2]).trim() : "-";
-
+        html += `
+          <div class="resumen-card resumen-calc-card">
+            <h3> Resultados</h3>
+            <div class="resumen-item"><span class="resumen-label">Capital Inicial</span><span class="resumen-value">${sanitize(String(rows[0][2] || ""))}</span></div>
+            <div class="resumen-item"><span class="resumen-label">NET PROFIT</span><span class="resumen-value success net-profit">${sanitize(String(rows[1][2] || ""))}</span></div>
+            <div class="resumen-item"><span class="resumen-label">Promedio Diario</span><span class="resumen-value highlight">${sanitize(promedioStr)}/día</span></div>
+            <div class="resumen-item calc-editable-item">
+              <span class="resumen-label">%APR</span>
+              <div class="calc-input-wrap"><input type="number" id="calcApr" class="calc-input" value="${aprVal}" step="1" /><span class="calc-unit">%</span></div>
+            </div>
+            <div class="resumen-item calc-editable-item">
+              <span class="resumen-label">Días</span>
+              <div class="calc-input-wrap"><input type="number" id="calcDias" class="calc-input" value="${diasVal}" step="1" /><span class="calc-unit">días</span></div>
+            </div>
+            <div class="resumen-item calc-editable-item">
+              <span class="resumen-label">Retiro mensual</span>
+              <div class="calc-input-wrap"><span class="calc-unit">$</span><input type="number" id="calcRetiro" class="calc-input" value="${retiroVal}" step="1" /></div>
+            </div>
+            <div class="resumen-item calc-result-item">
+              <span class="resumen-label">Capital Final</span>
+              <span class="resumen-value highlight calc-result" id="calcCapitalFinal">$${capFinal.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+          </div>`;
+      }
+    } else {
+      // DISEÑO PARA NUEVAS PESTAÑAS (Resumen simplificado 7 filas)
+      const rows = data.cuadro3 || [];
       html += `
-    <div class="resumen-card resumen-calc-card">
-      <h3> Resultados</h3>
-      <div class="resumen-item">
-        <span class="resumen-label">${rows[0] ? sanitize(String(rows[0][0])) : "Capital Inicial"}</span>
-        <span class="resumen-value">${sanitize(capInicStr)}</span>
-      </div>
-      <div class="resumen-item">
-        <span class="resumen-label">${rows[1] ? sanitize(String(rows[1][0])) : "NET PROFIT"}</span>
-        <span class="resumen-value success net-profit">${sanitize(netProfitStr)}</span>
-      </div>
-      <div class="resumen-item">
-        <span class="resumen-label">${rows[2] ? sanitize(String(rows[2][0])) : "Promedio Diario"}</span>
-        <span class="resumen-value highlight">${sanitize(promedioDiarioStr)}/día</span>
-      </div>
-      <div class="resumen-item calc-editable-item">
-        <span class="resumen-label">${rows[3] ? sanitize(String(rows[3][0])) : "%APR"}</span>
-        <div class="calc-input-wrap">
-          <input type="number" id="calcApr" class="calc-input" value="${aprVal}" step="1" min="0" max="1000" />
-          <span class="calc-unit">%</span>
-        </div>
-      </div>
-      <div class="resumen-item calc-editable-item">
-        <span class="resumen-label">${rows[4] ? sanitize(String(rows[4][0])) : "Días"}</span>
-        <div class="calc-input-wrap">
-          <input type="number" id="calcDias" class="calc-input" value="${diasVal}" step="1" min="1" />
-          <span class="calc-unit">días</span>
-        </div>
-      </div>
-      <div class="resumen-item calc-editable-item">
-        <span class="resumen-label">${rows[5] ? sanitize(String(rows[5][0])) : "Retiro mensual"}</span>
-        <div class="calc-input-wrap">
-          <span class="calc-unit">$</span>
-          <input type="number" id="calcRetiro" class="calc-input" value="${retiroVal}" step="1" min="0" />
-        </div>
-      </div>
-      <div class="resumen-item calc-result-item">
-        <span class="resumen-label">${rows[6] ? sanitize(String(rows[6][0])) : "Capital Final"}</span>
-        <span class="resumen-value highlight calc-result" id="calcCapitalFinal">
-          $${capitalFinal.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </span>
-      </div>
-    </div>
-    `;
+        <div class="resumen-card">
+          <h3> Resumen Financiero</h3>
+          ${rows.map((row, i) => `
+            <div class="resumen-item">
+              <span class="resumen-label">${sanitize(String(row[0] || ""))}</span>
+              <span class="resumen-value ${i === 2 ? "success net-profit" : (i === 3 || i === 5 || i === 6 ? "highlight" : "")}">
+                ${(i === 0 || i === 6) && !String(row[1]).includes("S/") ? "S/ " : ""}${sanitize(String(row[1] || "-"))}${i === 3 ? "/día" : ""}
+              </span>
+            </div>
+          `).join("")}
+        </div>`;
     }
 
-    container.innerHTML =
-      html ||
-      '<div class="resumen-card" style="grid-column:1/-1;"><p style="color:var(--gray);">No hay datos de resumen disponibles</p></div>';
+    DOM.resumenContainer.innerHTML = html || '<p>No hay datos disponibles</p>';
+    raf(() => DOM.resumenContainer.classList.add("show"));
 
-    // Adjuntar calculadora en tiempo real
-    setTimeout(function () {
-      const calcApr = document.getElementById("calcApr");
+    // Inicializar calculadora si existe
+    const calcApr = document.getElementById("calcApr");
+    if (calcApr) {
+      const rows = data.cuadro3;
+      const ci = parseFloat(String(rows[0][2]).replace(/[$,]/g, "")) || 0;
       const calcDias = document.getElementById("calcDias");
       const calcRetiro = document.getElementById("calcRetiro");
       const calcResult = document.getElementById("calcCapitalFinal");
-      if (!calcApr || !calcDias || !calcRetiro || !calcResult) return;
 
-      // Leer capital inicial del primer cuadro3 row
-      const rows = data.cuadro3 || [];
-      function parseNum(s) {
-        if (!s || s === "-") return 0;
-        return (
-          parseFloat(
-            String(s)
-              .replace(/[$,%\s]/g, "")
-              .replace(",", "."),
-          ) || 0
-        );
-      }
-      const ci = parseNum(rows[0] ? rows[0][2] : "0");
+      const recalcular = () => {
+        const r = (parseFloat(calcApr.value) || 0) / 100 / 365;
+        const d = parseFloat(calcDias.value) || 0;
+        const ret = parseFloat(calcRetiro.value) || 0;
+        const m = Math.floor(d / 30);
+        const fC = Math.pow(1 + r, m * 30);
+        const f30 = Math.pow(1 + r, 30);
+        const fR = Math.pow(1 + r, d % 30);
+        let cap = (ret === 0) ? ci * fC * fR : (ci * fC - (ret * (fC - 1)) / (f30 - 1)) * fR;
+        cap = Math.max(0, cap);
+        calcResult.textContent = "$" + cap.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      };
 
-      function recalcular() {
-        const aprPct = parseFloat(calcApr.value) || 0;
-        const dias = parseFloat(calcDias.value) || 0;
-        const retiro = parseFloat(calcRetiro.value) || 0;
-
-        // Fórmula exacta de Google Sheets:
-        // =(CI*(1+r/365)^(INT(d/30)*30) - retiro*((1+r/365)^(INT(d/30)*30)-1)/((1+r/365)^30-1))*(1+r/365)^RESIDUO(d,30)
-        const r = aprPct / 100; // APR como decimal
-        const rDay = r / 365; // tasa diaria
-        const mesesInt = Math.floor(dias / 30); // meses completos enteros
-        const diasC = mesesInt * 30; // días de meses completos
-        const diasR = dias % 30; // días residuales (RESIDUO)
-        const factorC = Math.pow(1 + rDay, diasC); // (1+r/365)^(INT(d/30)*30)
-        const factor30 = Math.pow(1 + rDay, 30); // (1+r/365)^30
-        const factorR = Math.pow(1 + rDay, diasR); // (1+r/365)^RESIDUO(d,30)
-
-        let capital;
-        if (retiro === 0 || Math.abs(factor30 - 1) < 1e-12) {
-          // Sin retiro o tasa cero: crecimiento simple
-          capital = ci * factorC * factorR;
-        } else {
-          capital =
-            (ci * factorC - (retiro * (factorC - 1)) / (factor30 - 1)) *
-            factorR;
-        }
-
-        capital = Math.max(0, capital);
-        calcResult.textContent =
-          "$" +
-          capital.toLocaleString("es-ES", {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          });
-        calcResult.classList.toggle("calc-positive", capital >= ci);
-        calcResult.classList.toggle("calc-negative", capital < ci);
-      }
-
-      calcApr.addEventListener("input", recalcular);
-      calcDias.addEventListener("input", recalcular);
-      calcRetiro.addEventListener("input", recalcular);
-      recalcular();
-    }, 50);
+      [calcApr, calcDias, calcRetiro].forEach(el => el.addEventListener("input", recalcular));
+    }
   }
+
+  // ============================================
+  // GESTIÓN DE CAPITALES (PESTAÑAS)
+  // ============================================
+  function cargarCapitanes() {
+    google.script.run
+      .withSuccessHandler(function(list) {
+        const trigger = document.getElementById("capitalSelectedText");
+        const options = document.getElementById("capitalOptions");
+        const select = document.getElementById("capitalSelect");
+        
+        if (!trigger || !options) return;
+        
+        trigger.textContent = currentSheet;
+        options.innerHTML = "";
+        select.innerHTML = "";
+        
+        list.forEach(name => {
+          // Opción para custom select
+          const opt = document.createElement("div");
+          opt.className = "custom-option" + (name === currentSheet ? " selected" : "");
+          opt.textContent = name;
+          opt.onclick = () => cambiarCapital(name);
+          options.appendChild(opt);
+          
+          // Opción para select nativo (fallback)
+          const nativeOpt = document.createElement("option");
+          nativeOpt.value = name;
+          nativeOpt.textContent = name;
+          nativeOpt.selected = (name === currentSheet);
+          select.appendChild(nativeOpt);
+        });
+
+        // Eventos para el selector custom
+        const triggerContainer = document.getElementById("capitalTrigger");
+        const container = document.getElementById("capitalSelectorContainer");
+        
+        triggerContainer.onclick = (e) => {
+          e.stopPropagation();
+          options.classList.toggle("show");
+          triggerContainer.classList.toggle("active");
+        };
+        
+        document.addEventListener("click", () => {
+          options.classList.remove("show");
+          triggerContainer.classList.remove("active");
+        });
+      })
+      .getCapitalsList();
+  }
+
+  function cambiarCapital(name) {
+    if (name === currentSheet) return;
+    console.log("Cambiando a capital:", name);
+    currentSheet = name;
+    
+    // Visual update
+    document.getElementById("capitalSelectedText").textContent = name;
+    document.querySelectorAll("#capitalOptions .custom-option").forEach(opt => {
+      opt.classList.toggle("selected", opt.textContent === name);
+    });
+
+    // Refresh data
+    refrescarTodo();
+  }
+
+  function mostrarModalCapital() {
+    document.getElementById("modalCapital").classList.add("show");
+    document.getElementById("formCapital").reset();
+    document.getElementById("groupNombreCapital").classList.remove("has-error");
+  }
+
+  function cerrarModalCapital(e) {
+    if (e.target.id === "modalCapital") cerrarModalCapitalDirecto();
+  }
+
+  function cerrarModalCapitalDirecto() {
+    document.getElementById("modalCapital").classList.remove("show");
+  }
+
+  document.getElementById("formCapital").onsubmit = function(e) {
+    e.preventDefault();
+    const btn = document.getElementById("btnGuardarCapital");
+    const loading = document.getElementById("capitalLoading");
+    
+    const datos = {
+      nombre: document.getElementById("nombreCapital").value.trim(),
+      soles: parseFloat(document.getElementById("capitalSoles").value) || 0,
+      dolares: parseFloat(document.getElementById("capitalDolares").value) || 0
+    };
+
+    if (!datos.nombre) return;
+
+    btn.disabled = true;
+    loading.style.display = "flex";
+
+    google.script.run
+      .withSuccessHandler(function(resp) {
+        btn.disabled = false;
+        loading.style.display = "none";
+        if (resp.success) {
+          showAlert("success", resp.message);
+          cerrarModalCapitalDirecto();
+          currentSheet = datos.nombre;
+          cargarCapitanes();
+          refrescarTodo();
+        } else {
+          showAlert("error", resp.message);
+        }
+      })
+      .withFailureHandler(function(err) {
+        btn.disabled = false;
+        loading.style.display = "none";
+        showAlert("error", "Error: " + err);
+      })
+      .crearNuevoCapital(datos);
+  };
 
   function editarCelda(element, celdaRef, titulo) {
     const nota = element.getAttribute("data-note") || "";
@@ -1617,7 +1486,7 @@
           overlay.remove();
           if (res && res.success) {
             showAlert("success", "Actualizado correctamente");
-            cargarResumen(true);
+            cargarResumen();
           } else {
             showAlert("error", "Error al guardar");
           }
@@ -1626,7 +1495,7 @@
           overlay.remove();
           showAlert("error", "Error de conexión");
         })
-        .actualizarCelda(celdaRef, nuevaFormula, nuevaNota);
+        .actualizarCelda(celdaRef, nuevaFormula, nuevaNota, currentSheet);
     };
 
     overlay.addEventListener("click", (e) => {

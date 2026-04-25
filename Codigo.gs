@@ -7,7 +7,7 @@
 // CONFIGURACIÓN
 // ============================================
 const SPREADSHEET_ID = "1g9JBdaZ7eAAhaEjUf5pQs2YEzKAR2QYANXAJHMz0oJc";
-const SHEET_NAME = "CAPITAL 1";
+const DEFAULT_SHEET_NAME = "CAPITAL 1";
 
 // Los datos individuales empiezan en fila 16
 const FIRST_DATA_ROW = 16;
@@ -19,23 +19,25 @@ const FIRST_DATA_ROW = 16;
 // Q=FINAL OBTENIDO, R=INTERÉS, S=TOTAL
 // U=MONEDA FINAL, V=APR ACUMULADO, W=APR EFECTIVO DIARIO
 const COL = {
-  FECHA_INICIO: 5,
-  FECHA_FIN: 6,
-  CEX: 7,
-  MONTO: 8,
-  MONEDA: 9,
-  APR: 10,
-  TIPO: 11,
-  PRECIO_OBJ: 12,
-  TIEMPO_CEX: 13,
-  TIEMPO_DIAS: 14,
-  DURACION: 15,
-  FINAL: 17,
-  INTERES: 18,
-  TOTAL: 19,
-  MONEDA_FINAL: 21,
-  APR_ACUM: 22,
-  APR_EFECTIVO: 23,
+  FECHA_INICIO: 5,  // E
+  FECHA_FIN: 6,     // F
+  CEX: 7,           // G
+  MONTO: 8,         // H
+  MONEDA: 9,        // I
+  APR: 10,          // J
+  TIPO: 11,         // K
+  PRECIO_OBJ: 12,   // L
+  TIEMPO_D_VAL: 13, // M (Días calc)
+  TIEMPO_D_TXT: 14, // N ("dia")
+  TIEMPO_H_VAL: 15, // O (Hrs calc)
+  TIEMPO_H_TXT: 16, // P ("hrs")
+  TIEMPO_DIAS: 17,  // Q (Tiempo días decimal)
+  INTERES: 18,      // R
+  FINAL_CALC: 19,   // S
+  FINAL_OBT_VAL: 20,// T
+  FINAL_OBT_MON: 21,// U
+  APR_ACUM: 22,     // V
+  APR_EFECTIVO: 23, // W
 };
 
 const NUM_COLS = 19; // Desde E hasta W (23 - 5 + 1)
@@ -92,7 +94,8 @@ function doGet(e) {
 // HELPER: Obtener la hoja
 // ============================================
 // Retorna {sheet, ss} para operar con la hoja de cálculo
-function getSheet() {
+function getSheet(sheetName) {
+  const name = sheetName || DEFAULT_SHEET_NAME;
   let ss = null;
   try {
     ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -111,22 +114,38 @@ function getSheet() {
 
   if (!ss) throw new Error("No se pudo obtener la hoja de cálculo");
 
-  const sheet = ss.getSheetByName(SHEET_NAME);
-  if (!sheet) throw new Error('No se encontró la pestaña "' + SHEET_NAME + '"');
+  const sheet = ss.getSheetByName(name);
+  if (!sheet) throw new Error('No se encontró la pestaña "' + name + '"');
 
   return { sheet, ss };
+}
+
+// Retorna lista de nombres de pestañas (Capitales)
+function getCapitalsList() {
+  try {
+    let ss = null;
+    try { ss = SpreadsheetApp.getActiveSpreadsheet(); } catch(e) {}
+    if (!ss) ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    
+    return ss.getSheets()
+      .filter(s => !s.isSheetHidden())
+      .map(s => s.getName());
+  } catch (e) {
+    Logger.log("Error en getCapitalsList: " + e);
+    return [DEFAULT_SHEET_NAME];
+  }
 }
 
 // ============================================
 // HELPER: Serializar valor para JSON
 // ============================================
 // Convierte valores de celda a tipos JSON válidos (Date → string)
-function serCell(val) {
+function serCell(val, sheetName) {
   if (val === null || val === undefined) return null;
   if (val instanceof Date) {
     if (isNaN(val.getTime())) return null;
     try {
-      const { ss } = getSheet();
+      const { ss } = getSheet(sheetName);
       return Utilities.formatDate(
         val,
         ss.getSpreadsheetTimeZone(),
@@ -146,9 +165,9 @@ function serCell(val) {
 // ============================================
 // Crea una nueva fila con los datos de la operación (solo E-L)
 // Las columnas M-W se calculan automáticamente en la hoja
-function agregarOperacion(datos) {
+function agregarOperacion(datos, sheetName) {
   try {
-    const { sheet, ss } = getSheet();
+    const { sheet, ss } = getSheet(sheetName);
     const tz = ss.getSpreadsheetTimeZone();
 
     // Buscar primera fila vacía desde FIRST_DATA_ROW
@@ -180,17 +199,40 @@ function agregarOperacion(datos) {
     const range = sheet.getRange(nuevaFila, COL.FECHA_INICIO, 1, COLS_INPUT);
     range.setValues([rowData]);
 
+    // Insertar fórmulas y valores automáticos para columnas M a W (13 a 23)
+    const r = nuevaFila;
+    const rowValues = [
+      `=INT(Q${r})`,                       // M: Días calc
+      "dia",                               // N: Texto "dia"
+      `=ROUND((Q${r}-M${r})*24, 0)`,        // O: Horas calc
+      "hrs",                               // P: Texto "hrs"
+      `=F${r}-E${r}`,                      // Q: Tiempo días decimal
+      `=IF(I${r}="USDT", H${r}*J${r}*Q${r}/365, H${r}*J${r}*Q${r}*L${r}/365)`, // R: Interés
+      `=IF(I${r}="USDT", H${r}+R${r}, H${r}*L${r}+R${r})`, // S: Final Calc
+      "",                                  // T: Final Obtenido Valor (Manual)
+      "",                                  // U: Final Obtenido Moneda (Manual)
+    ];
+    
+    // APR Acumulado (V) y APR Efectivo (W)
+    const capInitCell = (sheetName === DEFAULT_SHEET_NAME) ? "J2" : "F3";
+    rowValues.push(`=IFERROR((S${r}-${capInitCell})*365/${capInitCell}/CEILING(F${r}-MIN(E:E), 1), 0)`); // V: APR Acum
+    rowValues.push(`=IF(I${r}="USDT", R${r}*365/H${r}, R${r}*365/H${r}/L${r})`); // W: APR Ef
+
+    sheet.getRange(r, 13, 1, rowValues.length).setValues([rowValues]);
+
     // Aplicar formatos
-    sheet
-      .getRange(nuevaFila, COL.FECHA_INICIO)
-      .setNumberFormat("dd/mm/yyyy hh:mm");
-    sheet
-      .getRange(nuevaFila, COL.FECHA_FIN)
-      .setNumberFormat("dd/mm/yyyy hh:mm");
-    sheet.getRange(nuevaFila, COL.APR).setNumberFormat("0.00%");
+    sheet.getRange(r, COL.FECHA_INICIO).setNumberFormat("dd/mm/yyyy hh:mm");
+    sheet.getRange(r, COL.FECHA_FIN).setNumberFormat("dd/mm/yyyy hh:mm");
+    sheet.getRange(r, COL.APR).setNumberFormat("0.00%");
+    sheet.getRange(r, 13).setNumberFormat("0"); // M
+    sheet.getRange(r, 15).setNumberFormat("0"); // O
+    sheet.getRange(r, 17).setNumberFormat("0.00"); // Q
+    sheet.getRange(r, 18, 1, 3).setNumberFormat("$#,##0.00"); // R, S, T
+    sheet.getRange(r, 22, 1, 2).setNumberFormat("0.00%"); // V, W
 
     const fmtMonto = datos.moneda === "USDT" ? "$#,##0.00" : "0.000000";
-    sheet.getRange(nuevaFila, COL.MONTO).setNumberFormat(fmtMonto);
+    sheet.getRange(r, COL.MONTO).setNumberFormat(fmtMonto);
+    sheet.getRange(r, COL.MONEDA).setValue(datos.moneda);
 
     return {
       success: true,
@@ -207,9 +249,9 @@ function agregarOperacion(datos) {
 // OBTENER OPERACIONES
 // ============================================
 // Lee todas las operaciones de la hoja y las separa en activas y completadas
-function obtenerOperaciones() {
+function obtenerOperaciones(sheetName) {
   try {
-    const { sheet } = getSheet();
+    const { sheet } = getSheet(sheetName);
     const lastRow = sheet.getLastRow();
 
     Logger.log(
@@ -237,24 +279,30 @@ function obtenerOperaciones() {
       const fechaVal = row[0];
       if (!fechaVal || fechaVal.toString().trim() === "") continue;
 
+      // Calcular tiempo formateado
+      const daysInt = Math.round(parseFloat(row[8])) || 0;
+      const hrsInt = Math.round(parseFloat(row[10])) || 0;
+      let tStr = "";
+      if (daysInt > 0) tStr += daysInt + (daysInt === 1 ? " día " : " días ");
+      if (hrsInt > 0 || (daysInt === 0 && hrsInt === 0)) tStr += hrsInt + (hrsInt === 1 ? " hora" : " horas");
+
       // Crear objeto operación con los datos de la fila
       const operacion = {
         fila: FIRST_DATA_ROW + i,
-        fechaInicio: serCell(row[0]),
-        fechaFin: serCell(row[1]),
-        cex: serCell(row[2]),
-        monto: serCell(row[3]),
-        moneda: serCell(row[4]),
+        fechaInicio: serCell(row[0], sheetName),
+        fechaFin: serCell(row[1], sheetName),
+        cex: serCell(row[2], sheetName),
+        monto: serCell(row[3], sheetName),
+        moneda: serCell(row[4], sheetName),
         apr: fmtPct(row[5]),
-        tipoOperacion: serCell(row[6]),
-        precioObjetivo: serCell(row[7]),
-        tiempoCex: serCell(row[8]),
-        tiempoDias: serCell(row[9]),
-        duracion: serCell(row[10]),
-        final: serCell(row[15]), // T - Final obtenido (con símbolo)
-        interes: serCell(row[13]),
-        total: serCell(row[14]),
-        monedaFinal: serCell(row[16]), // U - Moneda final
+        tipoOperacion: serCell(row[6], sheetName),
+        precioObjetivo: serCell(row[7], sheetName),
+        tiempoCex: tStr,
+        tiempoDias: serCell(row[12], sheetName),
+        interes: serCell(row[13], sheetName),
+        total: serCell(row[14], sheetName),
+        final: serCell(row[15], sheetName),
+        monedaFinal: serCell(row[16], sheetName),
         aprAcum: fmtPct(row[17]),
         aprEfectivo: fmtPct(row[18]),
       };
@@ -282,9 +330,9 @@ function obtenerOperaciones() {
 // ELIMINAR OPERACIÓN
 // ============================================
 // Elimina la fila de la operación
-function eliminarOperacionFila(fila) {
+function eliminarOperacionFila(fila, sheetName) {
   try {
-    const { sheet } = getSheet();
+    const { sheet } = getSheet(sheetName);
     sheet.deleteRow(fila);
     SpreadsheetApp.flush();
     return { success: true, message: "Operación eliminada" };
@@ -298,9 +346,9 @@ function eliminarOperacionFila(fila) {
 // ACTUALIZAR OPERACIÓN
 // ============================================
 // Actualiza los datos de una operación existente (solo E-L)
-function actualizarOperacionFila(datos) {
+function actualizarOperacionFila(datos, sheetName) {
   try {
-    const { sheet, ss } = getSheet();
+    const { sheet, ss } = getSheet(sheetName);
     const tz = ss.getSpreadsheetTimeZone();
 
     // Calcular nuevas fechas
@@ -322,10 +370,33 @@ function actualizarOperacionFila(datos) {
     const range = sheet.getRange(f, COL.FECHA_INICIO, 1, COLS_INPUT);
     range.setValues([rowData]);
 
+    // Re-insertar fórmulas por si acaso se borraron
+    const r = f;
+    const formulas = [
+      `=F${r}-E${r}`,                      // M: Tiempo CEX
+      `=F${r}-E${r}`,                      // N: Tiempo Días
+      `=INT(N${r}) & "d " & ROUND((N${r}-INT(N${r}))*24,0) & "h"`, // O: Duración
+      "",                                  // P: (vacía)
+      `=IF(U${r}="", "", IF(U${r}="USDT", S${r}, S${r}/L${r}))`, // Q: Final Obtenido
+      `=IF(I${r}="USDT", H${r}*J${r}*N${r}/365, H${r}*J${r}*N${r}*L${r}/365)`, // R: Interés
+      `=IF(I${r}="USDT", H${r}+R${r}, H${r}*L${r}+R${r})`, // S: Total
+      "",                                  // T: (vacía)
+      "",                                  // U: Moneda Final (manual al confirmar)
+    ];
+    const capInitCell = (sheetName === DEFAULT_SHEET_NAME) ? "J2" : "F3";
+    formulas.push(`=IFERROR((S${r}-${capInitCell})*365/${capInitCell}/(F${r}-MIN(E:E)), 0)`); // V: APR Acum
+    formulas.push(`=IF(I${r}="USDT", R${r}*365/H${r}, R${r}*365/H${r}/L${r})`); // W: APR Ef
+
+    sheet.getRange(r, 13, 1, formulas.length).setFormulas([formulas]);
+
     // Aplicar formatos
-    sheet.getRange(f, COL.APR).setNumberFormat("0.00%");
+    sheet.getRange(r, COL.APR).setNumberFormat("0.00%");
+    sheet.getRange(r, 13, 1, 2).setNumberFormat("0.00"); // M, N
+    sheet.getRange(r, 17, 1, 3).setNumberFormat("$#,##0.00"); // Q, R, S
+    sheet.getRange(r, 22, 1, 2).setNumberFormat("0.00%"); // V, W
+
     const fmtMonto = datos.moneda === "USDT" ? "$#,##0.00" : "0.000000";
-    sheet.getRange(f, COL.MONTO).setNumberFormat(fmtMonto);
+    sheet.getRange(r, COL.MONTO).setNumberFormat(fmtMonto);
 
     SpreadsheetApp.flush();
     return { success: true, message: "Operación actualizada correctamente" };
@@ -340,10 +411,16 @@ function actualizarOperacionFila(datos) {
 // ============================================
 // Marca la operación como completada ingresando la moneda final (columna U)
 // Las columnas M-W se calculan automáticamente en la hoja
-function completarOperacion(fila, monedaFinal) {
+function completarOperacion(fila, monedaFinal, sheetName) {
   try {
-    const { sheet } = getSheet();
-    sheet.getRange(fila, COL.MONEDA_FINAL).setValue(monedaFinal);
+    const { sheet } = getSheet(sheetName);
+    const r = fila;
+    // T: Valor, U: Moneda
+    const valFormula = (monedaFinal === "USDT") ? `=S${r}` : `=S${r}/L${r}`;
+    
+    sheet.getRange(r, COL.FINAL_OBT_VAL).setFormula(valFormula);
+    sheet.getRange(r, COL.FINAL_OBT_MON).setValue(monedaFinal);
+    
     SpreadsheetApp.flush();
     return { success: true, message: "Operación completada correctamente" };
   } catch (error) {
@@ -356,9 +433,9 @@ function completarOperacion(fila, monedaFinal) {
 // OBTENER RESUMEN
 // ============================================
 // Obtiene los datos de los cuadros de resumen de la hoja
-function obtenerResumen() {
+function obtenerResumen(sheetName) {
   try {
-    const { sheet } = getSheet();
+    const { sheet } = getSheet(sheetName);
 
     let cuadro1 = [],
       cuadro2 = [],
@@ -369,7 +446,7 @@ function obtenerResumen() {
       formulaB4 = "";
 
     // Actualizar dólar antes de leer (para valores frescos)
-    GetDollarHouse();
+    GetDollarHouse(sheetName);
     SpreadsheetApp.flush();
 
     // Obtener valores formateados de cada cuadro
@@ -384,9 +461,14 @@ function obtenerResumen() {
       Logger.log("Error E2:F5: " + e);
     }
     try {
-      cuadro3 = sheet.getRange("H2:J8").getDisplayValues();
+      if (sheet.getName() === DEFAULT_SHEET_NAME) {
+        cuadro3 = sheet.getRange("H2:J8").getDisplayValues();
+      } else {
+        // Para nuevas pestañas, el resumen está en E2:F8
+        cuadro3 = sheet.getRange("E2:F8").getDisplayValues();
+      }
     } catch (e) {
-      Logger.log("Error H2:J8: " + e);
+      Logger.log("Error obteniendo cuadro3: " + e);
     }
 
     // Obtener notas y fórmulas de celdas editables
@@ -445,12 +527,12 @@ function extractBetween(text, startStr, endStr) {
 
 // Obtiene el tipo de cambio del dólar desde DollarHouse
 // Usa caché para evitar solicitudes frecuentes
-function GetDollarHouse() {
+function GetDollarHouse(sheetName) {
   const cache = CacheService.getScriptCache();
   const cached = cache.get("dollar_rate");
   if (cached) return parseFloat(cached); // Retorna caché si existe
 
-  const { sheet } = getSheet();
+  const { sheet } = getSheet(sheetName);
   if (!sheet) return null;
 
   try {
@@ -461,7 +543,8 @@ function GetDollarHouse() {
       headers: { "User-Agent": "Mozilla/5.0" },
     });
     if (resp.getResponseCode() !== 200) {
-      sheet.getRange("F2").setValue("N/A");
+      const cell = sheet.getName() === DEFAULT_SHEET_NAME ? "F2" : "F7";
+      sheet.getRange(cell).setValue("N/A");
       return null;
     }
 
@@ -470,11 +553,13 @@ function GetDollarHouse() {
     const buyNum = buy ? parseFloat(buy.replace(/[^0-9.]/g, "")) : null;
 
     if (buyNum && !isNaN(buyNum)) {
-      sheet.getRange("F2").setValue(buyNum);
+      const cell = sheet.getName() === DEFAULT_SHEET_NAME ? "F2" : "F7";
+      sheet.getRange(cell).setValue(buyNum);
       cache.put("dollar_rate", buyNum.toString(), 60); // Caché 1 minuto
       return buyNum;
     } else {
-      sheet.getRange("F2").setValue("N/A");
+      const cell = sheet.getName() === DEFAULT_SHEET_NAME ? "F2" : "F7";
+      sheet.getRange(cell).setValue("N/A");
       return null;
     }
   } catch (e) {
@@ -487,9 +572,9 @@ function GetDollarHouse() {
 // ACTUALIZAR CELDA
 // ============================================
 // Actualiza una celda específica con valor o fórmula
-function actualizarCelda(celda, valor, nota) {
+function actualizarCelda(celda, valor, nota, sheetName) {
   try {
-    const { sheet } = getSheet();
+    const { sheet } = getSheet(sheetName);
     const rango = sheet.getRange(celda || "B6");
 
     // Si empieza con "=", guardar como fórmula
@@ -504,6 +589,76 @@ function actualizarCelda(celda, valor, nota) {
     return { success: true, message: "Valor actualizado" };
   } catch (error) {
     Logger.log("Error en actualizarCelda: " + error);
+    return { success: false, message: error.toString() };
+  }
+}
+
+// ============================================
+// CREAR NUEVO CAPITAL (NUEVA PESTAÑA)
+// ============================================
+function crearNuevoCapital(datos) {
+  try {
+    let ss = null;
+    try { ss = SpreadsheetApp.getActiveSpreadsheet(); } catch(e) {}
+    if (!ss) ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+
+    const nombre = datos.nombre;
+    if (ss.getSheetByName(nombre)) {
+      return { success: false, message: "Ya existe una pestaña con ese nombre" };
+    }
+
+    const sheet = ss.insertSheet(nombre);
+    
+    // 1. Estilo General de la Hoja (Fondo oscuro total)
+    sheet.getRange("1:1000").setBackground("#111111").setFontColor("#e0e0e0").setFontFamily("Roboto");
+    
+    // 2. Configurar resumen en E2:F8
+    const summaryData = [
+      ["Capital Inicial (S/)", datos.soles],
+      ["Capital Inicial ($)", datos.dolares],
+      ["NET PROFIT", "=ROUND(IFERROR(INDEX(T:T,MATCH(9.99999999999999E+307,T:T))-F3,0), 2)"],
+      ["Promedio Diario", "=IFERROR(F4 / CEILING(MAX(E:E)-MIN(E:E), 1), 0)"],
+      ["%APR Promedio", "=AVERAGE(W16:W1000)"],
+      ["Tipo Cambio Venta", ""],
+      ["Capital Final (S/)", "=(F3+F4)*F7"]
+    ];
+    const summaryRange = sheet.getRange("E2:F8");
+    summaryRange.setValues(summaryData);
+    summaryRange.setBackground("#1a1a1a").setBorder(true, true, true, true, true, true, "#333333", SpreadsheetApp.BorderStyle.SOLID);
+    
+    // Resaltar Net Profit
+    sheet.getRange("E4:F4").setFontColor("#00ff94").setFontWeight("bold");
+    sheet.getRange("F4").setFontSize(14);
+    
+    sheet.getRange("F2").setNumberFormat("\"S/\"#,##0.00");
+    sheet.getRange("F3").setNumberFormat("$#,##0.00");
+    sheet.getRange("F4:F5").setNumberFormat("$#,##0.00");
+    sheet.getRange("F6").setNumberFormat("0.00%");
+    sheet.getRange("F7").setNumberFormat("0.000");
+    sheet.getRange("F8").setNumberFormat("\"S/\"#,##0.00");
+
+    // 3. Configurar encabezados de tabla (E15:W15)
+    const headers = [
+      "FECHA INICIO", "FECHA FIN", "CEX", "MONTO", "MONEDA", "% APR EN CEX", "TIPO OPERACIÓN", "PRECIO OBJ.",
+      "DIAS", "dia", "HRS", "hrs", "Tiempo (días)", "INTERÉS", "FINAL CALCULADO", "FINAL VAL", 
+      "FINAL MON", "APR ACUMULADO", "APR EFECTIVO DIARIO"
+    ];
+    const headerRange = sheet.getRange(15, 5, 1, headers.length);
+    headerRange.setValues([headers]);
+    headerRange.setBackground("#222222").setFontColor("#00ff94").setFontWeight("bold");
+    headerRange.setBorder(true, true, true, true, true, true, "#444444", SpreadsheetApp.BorderStyle.SOLID);
+    headerRange.setHorizontalAlignment("center");
+    
+    // Bordes para el área de datos
+    sheet.getRange("E16:W1000").setBorder(true, true, true, true, true, true, "#222222", SpreadsheetApp.BorderStyle.SOLID);
+    
+    // Actualizar tipo de cambio inicial
+    GetDollarHouse(nombre);
+    
+    SpreadsheetApp.flush();
+    return { success: true, message: "Pestaña '" + nombre + "' creada correctamente" };
+  } catch (error) {
+    Logger.log("Error en crearNuevoCapital: " + error);
     return { success: false, message: error.toString() };
   }
 }

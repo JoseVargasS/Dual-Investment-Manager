@@ -30,9 +30,25 @@
 
       <!-- Header -->
       <div class="header fade-in">
-        <div class="header-badge">
-          <span class="dot"></span>
-          Live Dashboard
+        <div class="header-top-bar">
+          <div class="header-badge">
+            <span class="dot"></span>
+            Live Dashboard
+          </div>
+          <div class="capital-selector-container">
+            <div class="custom-select-container" id="capitalSelectorContainer">
+              <div class="custom-select-trigger" id="capitalTrigger">
+                <span id="capitalSelectedText">Cargando...</span>
+              </div>
+              <div class="custom-options" id="capitalOptions"></div>
+              <select id="capitalSelect" style="display: none" onchange="cambiarCapital(this.value)">
+                <option value="">Cargando...</option>
+              </select>
+            </div>
+            <button class="btn-add-capital" onclick="mostrarModalCapital()" title="Añadir Capital">
+              <i data-lucide="plus"></i>
+            </button>
+          </div>
         </div>
         <h1>Inversión Dual</h1>
         <p>Control y seguimiento de operaciones · BTC · ETH · USDT</p>
@@ -272,6 +288,44 @@
         <div id="formLoading" class="loading">
           <div class="spinner"></div>
           <p>Guardando operación...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Nuevo Capital -->
+    <div id="modalCapital" class="modal-form-overlay" onclick="cerrarModalCapital(event)">
+      <div class="modal-form" onclick="event.stopPropagation()">
+        <div class="modal-form-header">
+          <h3 class="modal-form-title">
+            <i data-lucide="plus-circle" style="width:18px; height:18px;"></i>
+            Nuevo Capital
+          </h3>
+          <button class="modal-form-close" onclick="cerrarModalCapitalDirecto()" aria-label="Cerrar">×</button>
+        </div>
+        <form id="formCapital">
+          <div class="form-grid">
+            <div class="form-group" id="groupNombreCapital">
+              <label for="nombreCapital">Nombre de la Pestaña</label>
+              <input type="text" id="nombreCapital" placeholder="Ej: CAPITAL 2" required />
+            </div>
+            <div class="form-group" id="groupCapitalSoles">
+              <label for="capitalSoles">Capital Inicial (S/)</label>
+              <input type="number" id="capitalSoles" placeholder="0.00" step="any" required />
+            </div>
+            <div class="form-group" id="groupCapitalDolares">
+              <label for="capitalDolares">Capital Inicial ($)</label>
+              <input type="number" id="capitalDolares" placeholder="0.00" step="any" required />
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="btnGuardarCapital">
+              <i data-lucide="save"></i> Guardar Capital
+            </button>
+          </div>
+        </form>
+        <div id="capitalLoading" class="loading">
+          <div class="spinner"></div>
+          <p>Creando pestaña...</p>
         </div>
       </div>
     </div>
