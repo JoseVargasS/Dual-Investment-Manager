@@ -318,7 +318,15 @@
 
   // Función para actualizar el atributo step del campo monto según la moneda
   function actualizarStepMonto(moneda) {
-    DOM.monto.step = (moneda === "ETH" || moneda === "BTC") ? "0.000001" : "0.01";
+    DOM.monto.step = (moneda === "ETH" || moneda === "BTC") ? "0.0001" : "0.01";
+  }
+
+  // Función para limitar el monto a máximo 4 decimales
+  function limitarDecimalesMonto(e) {
+    const partes = e.target.value.split(".");
+    if (partes.length > 1 && partes[1].length > 4) {
+      e.target.value = partes[0] + "." + partes[1].slice(0, 4);
+    }
   }
 
   // ============================================
@@ -345,11 +353,17 @@
        return { valid: false, field: "cex" };
      }
 
-     const monto = parseFloat(document.getElementById("monto").value);
-     if (!monto || isNaN(monto) || monto <= 0) {
-       showFieldError("groupMonto", "errorMonto");
-       return { valid: false, field: "monto" };
-     }
+      const montoStr = document.getElementById("monto").value;
+      const monto = parseFloat(montoStr);
+      if (!monto || isNaN(monto) || monto <= 0) {
+        showFieldError("groupMonto", "errorMonto");
+        return { valid: false, field: "monto" };
+      }
+      const partes = montoStr.split(".");
+      if (partes.length > 1 && partes[1].length > 4) {
+        showFieldError("groupMonto", "errorMonto");
+        return { valid: false, field: "monto" };
+      }
 
      const moneda = document.getElementById("moneda").value;
      if (!moneda) {

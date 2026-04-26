@@ -52,8 +52,13 @@ function parseFechaISO(fechaISO, tz) {
   return Utilities.parseDate(fechaStr, tz, "yyyy-MM-dd HH:mm:ss");
 }
 
-// Calcula fecha de fin: día siguiente a las 3:00 AM
-function calcFechaFin(fechaInicio, tz) {
+// Calcula fecha de fin según el exchange
+function calcFechaFin(fechaInicio, tz, cex) {
+  // Bybit: siempre 8 horas (o 1 día + 8 horas si la operación supera 1 día)
+  if (cex && cex.toString().toLowerCase() === "bybit") {
+    return new Date(fechaInicio.getTime() + 8 * 60 * 60 * 1000);
+  }
+  // Comportamiento actual: día siguiente a las 3:00 AM
   const diaStr = Utilities.formatDate(
     new Date(fechaInicio.getTime() + 86400000),
     tz,
@@ -178,7 +183,7 @@ function agregarOperacion(datos, sheetName) {
 
     // Calcular fechas de inicio y fin
     const fechaInicio = parseFechaISO(datos.fechaInicio, tz);
-    const fechaFin = calcFechaFin(fechaInicio, tz);
+    const fechaFin = calcFechaFin(fechaInicio, tz, datos.cex);
 
     // Datos para columnas E-L (entrada manual del usuario)
     const rowData = [
@@ -353,7 +358,7 @@ function actualizarOperacionFila(datos, sheetName) {
 
     // Calcular nuevas fechas
     const fechaInicio = parseFechaISO(datos.fechaInicio, tz);
-    const fechaFin = calcFechaFin(fechaInicio, tz);
+    const fechaFin = calcFechaFin(fechaInicio, tz, datos.cex);
 
     const f = datos.fila;
     const rowData = [
