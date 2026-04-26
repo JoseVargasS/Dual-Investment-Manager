@@ -3,6 +3,7 @@
   // VARIABLES GLOBALES - Optimized
   // ============================================
   let operacionesData = { activas: [], completadas: [] };
+  let prevHistorialCount = 0;
   let currentSheet = "CAPITAL 1";
   const DEFAULT_SHEET_NAME = "CAPITAL 1";
 
@@ -14,12 +15,7 @@
     DOM.activasContainer = document.getElementById("activasContainer");
     DOM.historialContainer = document.getElementById("historialContainer");
     DOM.resumenContainer = document.getElementById("resumenContainer");
-    DOM.alertSuccess = document.getElementById("alertSuccess");
-    DOM.alertError = document.getElementById("alertError");
-    DOM.alertInfo = document.getElementById("alertInfo");
-    DOM.alertSuccessMsg = document.getElementById("alertSuccessMsg");
-    DOM.alertErrorMsg = document.getElementById("alertErrorMsg");
-    DOM.alertInfoMsg = document.getElementById("alertInfoMsg");
+    DOM.toastContainer = document.getElementById("toastContainer");
     DOM.fechaInicio = document.getElementById("fechaInicio");
     DOM.cex = document.getElementById("cex");
     DOM.monto = document.getElementById("monto");
@@ -29,7 +25,6 @@
     DOM.precioObjetivo = document.getElementById("precioObjetivo");
     DOM.countActivas = document.getElementById("countActivas");
     DOM.countHistorial = document.getElementById("countHistorial");
-    DOM.formLoading = document.getElementById("formLoading");
     DOM.btnGuardar = document.getElementById("btnGuardar");
     DOM.btnCancelar = document.getElementById("btnCancelar");
   };
@@ -405,102 +400,126 @@
      };
    }
 
+   function setFormLoading(loading) {
+      const btn = DOM.btnGuardar;
+      if (!btn) return;
+      const iconNormal = btn.querySelector(".btn-icon-normal");
+      const spinnerContainer = btn.querySelector(".btn-spinner-container");
+      const btnText = btn.querySelector(".btn-text");
+      if (loading) {
+        btn.disabled = true;
+        if (iconNormal) iconNormal.style.display = "none";
+        if (spinnerContainer) spinnerContainer.style.display = "inline-flex";
+        if (btnText) btnText.textContent = window.editandoFila ? "Actualizando" : "Guardando";
+        btn.classList.add("btn-loading");
+      } else {
+        btn.disabled = false;
+        if (iconNormal) iconNormal.style.display = "";
+        if (spinnerContainer) spinnerContainer.style.display = "none";
+        if (btnText) btnText.textContent = window.editandoFila ? "Actualizar Operación" : "Guardar Operación";
+        btn.classList.remove("btn-loading");
+      }
+    }
+
    function guardarOperacion(e) {
-     e.preventDefault();
-     console.log("Guardando operación...");
+      e.preventDefault();
+      console.log("Guardando operación...");
 
-     showLoading("formLoading", true);
+      setFormLoading(true);
 
-     try {
-       const validacion = validarFormulario();
-       if (!validacion.valid) {
-         showLoading("formLoading", false);
-         return;
-       }
+      try {
+        const validacion = validarFormulario();
+        if (!validacion.valid) {
+          setFormLoading(false);
+          return;
+        }
 
-       const { datos } = validacion;
+        const { datos } = validacion;
 
-       console.log("Datos a enviar:", datos);
+        console.log("Datos a enviar:", datos);
 
-       if (!isGASAvailable()) {
-         showAlert("error", "No se pudo conectar con Google Apps Script");
-         showLoading("formLoading", false);
-         return;
-       }
+        if (!isGASAvailable()) {
+          showAlert("error", "No se pudo conectar con Google Apps Script");
+          setFormLoading(false);
+          return;
+        }
 
-       // Solo crear fila pendiente si no estamos editando
-       let pendingRowCreated = false;
-       if (!window.editandoFila) {
-         crearFilaPendiente(datos);
-         pendingRowCreated = true;
-       }
+        // Solo crear fila pendiente si no estamos editando
+        let pendingRowCreated = false;
+        if (!window.editandoFila) {
+          crearFilaPendiente(datos);
+          pendingRowCreated = true;
+        }
 
-       const successHandler = function (response) {
-         showLoading("formLoading", false);
-         console.log("Respuesta servidor:", response);
-         if (response && response.success) {
-           showAlert(
-             "success",
-             window.editandoFila
-               ? "Operación actualizada correctamente"
-               : "Operación guardada correctamente",
-           );
+        const successHandler = function (response) {
+          setFormLoading(false);
+          console.log("Respuesta servidor:", response);
+          if (response && response.success) {
+            showAlert(
+              "success",
+              window.editandoFila
+                ? "Operación actualizada correctamente"
+                : "Operación guardada correctamente",
+            );
 
-           if (window.editandoFila) {
-             const submitBtn = document.querySelector(
-               '#formOperacion button[type="submit"]',
-             );
-             submitBtn.textContent = "Agregar Operación";
-             submitBtn.classList.remove("btn-warning");
+            if (window.editandoFila) {
+              const submitBtn = DOM.btnGuardar;
+              const iconNormal = submitBtn.querySelector(".btn-icon-normal");
+              const spinnerContainer = submitBtn.querySelector(".btn-spinner-container");
+              const btnText = submitBtn.querySelector(".btn-text");
+              if (iconNormal) iconNormal.style.display = "";
+              if (spinnerContainer) spinnerContainer.style.display = "none";
+              if (btnText) btnText.textContent = "Guardar Operación";
+              submitBtn.classList.remove("btn-warning");
 
-             const btnCancel = document.getElementById("btnCancelar");
-             if (btnCancel) btnCancel.style.display = "none";
+              const btnCancel = document.getElementById("btnCancelar");
+              if (btnCancel) btnCancel.style.display = "none";
 
-             window.editandoFila = null;
-             document.getElementById("formOperacion").reset();
-             setFechaHoraActual();
-             clearFormErrors();
-           }
+              window.editandoFila = null;
+              document.getElementById("formOperacion").reset();
+              setFechaHoraActual();
+              clearFormErrors();
+            }
 
-           // Cerrar el modal flotante después de guardar exitosamente
-           cerrarFormularioDirecto();
+            // Cerrar el modal flotante después de guardar exitosamente
+            cerrarFormularioDirecto();
 
-            cargarOperaciones(true);
-            cargarResumen(true);
-          } else {
-            showAlert("error", extraerMensaje(response, "Error en el servidor"));
-            cargarOperaciones(true); // Recargar por si acaso para quitar la fila pendiente
-         }
-       };
+             cargarOperaciones(true);
+             cargarResumen(true);
+           } else {
+             showAlert("error", extraerMensaje(response, "Error en el servidor"));
+             cargarOperaciones(true); // Recargar por si acaso para quitar la fila pendiente
+          }
+        };
 
-       const failureHandler = function (error) {
-         showLoading("formLoading", false);
-         console.error("Error de servidor:", error);
-         showAlert(
-           "error",
-           "Error: " + extraerMensaje(error, "Error desconocido"),
-         );
-         cargarOperaciones(true); // Recargar
-       };
+        const failureHandler = function (error) {
+          setFormLoading(false);
+          console.error("Error de servidor:", error);
+          showAlert(
+            "error",
+            "Error: " + extraerMensaje(error, "Error desconocido"),
+          );
+          cargarOperaciones(true); // Recargar
+        };
 
-       if (window.editandoFila) {
-         datos.fila = window.editandoFila;
-         google.script.run
-           .withSuccessHandler(successHandler)
-           .withFailureHandler(failureHandler)
-           .actualizarOperacionFila(datos, currentSheet);
-       } else {
-         google.script.run
-           .withSuccessHandler(successHandler)
-           .withFailureHandler(failureHandler)
-           .agregarOperacion(datos, currentSheet);
-       }
-     } catch (error) {
-       console.error("Error en guardarOperacion:", error);
-       showLoading("formLoading", false);
-       showAlert("error", "Error: " + (error.message || "Error desconocido"));
-     }
-   }
+        if (window.editandoFila) {
+          datos.fila = window.editandoFila;
+          google.script.run
+            .withSuccessHandler(successHandler)
+            .withFailureHandler(failureHandler)
+            .actualizarOperacionFila(datos, currentSheet);
+        } else {
+          google.script.run
+            .withSuccessHandler(successHandler)
+            .withFailureHandler(failureHandler)
+            .agregarOperacion(datos, currentSheet);
+        }
+      } catch (error) {
+        console.error("Error en guardarOperacion:", error);
+        setFormLoading(false);
+        showAlert("error", "Error: " + (error.message || "Error desconocido"));
+      }
+    }
 
   // ============================================
   // CARGAR OPERACIONES - Optimizado
@@ -529,10 +548,12 @@
 
   function renderizarOperaciones(response) {
     if (response && response.success) {
+      const oldCompletadasLen = operacionesData.completadas ? operacionesData.completadas.length : 0;
+      const newCompletadas = response.completadas || [];
       operacionesData = response;
       raf(() => {
         renderizarActivas(response.activas || []);
-        renderizarHistorial(response.completadas || []);
+        renderizarHistorial(newCompletadas, oldCompletadasLen);
       });
     } else {
       showAlert("error", response ? response.message : "Error al cargar operaciones");
@@ -695,7 +716,7 @@
     lucide.createIcons();
   }
 
-  function renderizarHistorial(completadas) {
+  function renderizarHistorial(completadas, prevCount) {
     const container =
       DOM.historialContainer || document.getElementById("historialContainer");
     if (!container) return;
@@ -714,6 +735,7 @@
     }
 
     const ordenadas = [...completadas].reverse();
+    const nuevasCount = Math.max(0, completadas.length - (prevCount || 0));
 
     let html = `
     <div class="table-container historial-table-container">
@@ -729,7 +751,8 @@
         <tbody>
   `;
 
-    ordenadas.forEach((op) => {
+    ordenadas.forEach((op, idx) => {
+      const animClass = idx < nuevasCount ? ' anim-row-new' : '';
       const fechaInicio = formatearFecha(op.fechaInicio);
       const montoFormateado = formatearMonto(op.monto, op.moneda);
       const badgeClass = getBadgeClass(op.tipoOperacion);
@@ -750,7 +773,7 @@
         : "";
 
       html += `
-      <tr class="operacion-row" data-fila="${op.fila}" data-historial="true">
+      <tr class="operacion-row${animClass}" data-fila="${op.fila}" data-historial="true">
         <td class="td-nowrap">
           <div style="margin-bottom:2px;">${fechaInicio}</div>
           ${duracionBadge}
@@ -801,25 +824,20 @@
           `.operacion-row[data-fila='${fila}']`,
         );
         if (opRow) {
-          opRow.classList.add("row-completing");
-          opRow.style.setProperty(
-            "--complete-color",
-            "rgba(0, 255, 148, 0.15)",
-          );
+          opRow.classList.add("anim-row-completing");
         }
 
         google.script.run
           .withSuccessHandler(function (response) {
             if (response && response.success) {
               if (opRow) {
-                opRow.classList.add("row-complete-success");
-                opRow.style.opacity = "0";
-                opRow.style.transform = "translateX(50px)";
+                opRow.classList.remove("anim-row-completing");
+                opRow.classList.add("anim-row-exit");
               }
               showAlert("success", "Operación completada correctamente");
               setTimeout(() => refrescarTodo(true), 300);
             } else {
-              if (opRow) opRow.classList.remove("row-completing");
+              if (opRow) opRow.classList.remove("anim-row-completing");
               showAlert(
                 "error",
                 extraerMensaje(response, "Error al completar"),
@@ -828,7 +846,7 @@
             }
           })
           .withFailureHandler(function (error) {
-            if (opRow) opRow.classList.remove("row-completing");
+            if (opRow) opRow.classList.remove("anim-row-completing");
             showAlert(
               "error",
               "Error: " + extraerMensaje(error, "Error desconocido"),
@@ -857,8 +875,7 @@
         );
         if (opRow) {
           shatterElement(opRow);
-          opRow.style.display = "none";
-          opRow.classList.add("row-deleting");
+          opRow.classList.add("anim-row-collapse");
         }
 
         google.script.run
@@ -868,8 +885,7 @@
               refrescarTodo(true);
             } else {
               if (opRow) {
-                opRow.style.display = "";
-                opRow.classList.remove("row-deleting");
+                opRow.classList.remove("anim-row-collapse");
               }
               showAlert("error", extraerMensaje(response, "Error al eliminar"));
             }
@@ -890,6 +906,12 @@
       (operacionesData.completadas || []).find((o) => o.fila === fila);
     if (!op) return;
 
+    const editRow = document.querySelector(`.operacion-row[data-fila='${fila}']:not([data-historial="true"])`);
+    if (editRow) {
+      editRow.classList.add("anim-row-edit");
+      setTimeout(() => editRow.classList.remove("anim-row-edit"), 1500);
+    }
+
     if (op.fechaInicio) {
       const rawLocal = op.fechaInicio.replace(" ", "T").substring(0, 16);
       document.getElementById("fechaInicio").value = rawLocal;
@@ -905,17 +927,15 @@
 
     window.editandoFila = fila;
 
-    const submitBtn = document.querySelector(
-      '#formOperacion button[type="submit"]',
-    );
+    const submitBtn = DOM.btnGuardar;
     if (submitBtn) {
-      submitBtn.textContent = "Actualizar Operación";
+      const btnText = submitBtn.querySelector(".btn-text");
+      if (btnText) btnText.textContent = "Actualizar Operación";
       submitBtn.classList.add("btn-warning");
     }
     showAlert(
       "info",
       "Modo edición activado. Modifica los campos y pulsa 'Actualizar'.",
-      5000,
     );
 
     const btnCancel = document.getElementById("btnCancelar");
@@ -930,19 +950,20 @@
     seleccionarCEX("OKX"); // Reset custom select
     setFechaHoraActual();
 
-    const submitBtn = document.querySelector(
-      '#formOperacion button[type="submit"]',
-    );
+    const submitBtn = DOM.btnGuardar;
     if (submitBtn) {
-      submitBtn.textContent = "Guardar Operación";
+      const iconNormal = submitBtn.querySelector(".btn-icon-normal");
+      const spinnerContainer = submitBtn.querySelector(".btn-spinner-container");
+      const btnText = submitBtn.querySelector(".btn-text");
+      if (iconNormal) iconNormal.style.display = "";
+      if (spinnerContainer) spinnerContainer.style.display = "none";
+      if (btnText) btnText.textContent = "Guardar Operación";
       submitBtn.classList.remove("btn-warning");
+      submitBtn.disabled = false;
     }
 
     const btnCancel = document.getElementById("btnCancelar");
     if (btnCancel) btnCancel.style.display = "none";
-
-    const alertInfo = document.getElementById("alertInfo");
-    if (alertInfo) alertInfo.classList.remove("show");
 
     cerrarFormularioDirecto();
   }
@@ -1282,10 +1303,30 @@
     document.getElementById("modalCapital").classList.remove("show");
   }
 
+  function setCapitalFormLoading(loading) {
+    const btn = document.getElementById("btnGuardarCapital");
+    if (!btn) return;
+    const iconNormal = btn.querySelector(".btn-icon-normal");
+    const spinnerContainer = btn.querySelector(".btn-spinner-container");
+    const btnText = btn.querySelector(".btn-text");
+    if (loading) {
+      btn.disabled = true;
+      if (iconNormal) iconNormal.style.display = "none";
+      if (spinnerContainer) spinnerContainer.style.display = "inline-flex";
+      if (btnText) btnText.textContent = "Creando";
+      btn.classList.add("btn-loading");
+    } else {
+      btn.disabled = false;
+      if (iconNormal) iconNormal.style.display = "";
+      if (spinnerContainer) spinnerContainer.style.display = "none";
+      if (btnText) btnText.textContent = "Guardar Capital";
+      btn.classList.remove("btn-loading");
+    }
+  }
+
   document.getElementById("formCapital").onsubmit = function(e) {
     e.preventDefault();
     const btn = document.getElementById("btnGuardarCapital");
-    const loading = document.getElementById("capitalLoading");
     
     const datos = {
       nombre: document.getElementById("nombreCapital").value.trim(),
@@ -1295,13 +1336,11 @@
 
     if (!datos.nombre) return;
 
-    btn.disabled = true;
-    loading.style.display = "flex";
+    setCapitalFormLoading(true);
 
     google.script.run
       .withSuccessHandler(function(resp) {
-        btn.disabled = false;
-        loading.style.display = "none";
+        setCapitalFormLoading(false);
         if (resp.success) {
           showAlert("success", resp.message);
           cerrarModalCapitalDirecto();
@@ -1313,8 +1352,7 @@
         }
       })
       .withFailureHandler(function(err) {
-        btn.disabled = false;
-        loading.style.display = "none";
+        setCapitalFormLoading(false);
         showAlert("error", "Error: " + err);
       })
       .crearNuevoCapital(datos);
@@ -1736,43 +1774,25 @@
   }
 
   function showAlert(type, message) {
-    // Usar cache DOM
-    let alertEl, msgEl;
+    const container = DOM.toastContainer || document.getElementById("toastContainer");
+    if (!container) return;
 
-    if (type === "success") {
-      alertEl = DOM.alertSuccess;
-      msgEl = DOM.alertSuccessMsg;
-    } else if (type === "info") {
-      alertEl = DOM.alertInfo;
-      msgEl = DOM.alertInfoMsg;
-    } else {
-      alertEl = DOM.alertError;
-      msgEl = DOM.alertErrorMsg;
-    }
+    const icons = { success: "circle-check", error: "circle-x", info: "info" };
+    const iconName = icons[type] || "circle-x";
 
-    if (!alertEl)
-      alertEl = document.getElementById(
-        type === "success"
-          ? "alertSuccess"
-          : type === "info"
-            ? "alertInfo"
-            : "alertError",
-      );
-    if (!msgEl)
-      msgEl = document.getElementById(
-        type === "success"
-          ? "alertSuccessMsg"
-          : type === "info"
-            ? "alertInfoMsg"
-            : "alertErrorMsg",
-      );
+    const toast = document.createElement("div");
+    toast.className = `toast toast-${type}`;
+    toast.innerHTML = `<i data-lucide="${iconName}"></i><span>${message}</span>`;
+    container.appendChild(toast);
+    lucide.createIcons();
 
-    if (msgEl) msgEl.textContent = message;
-    if (alertEl) alertEl.classList.add("show");
+    requestAnimationFrame(() => toast.classList.add("show"));
 
     setTimeout(() => {
-      if (alertEl) alertEl.classList.remove("show");
-    }, 5000);
+      toast.classList.remove("show");
+      toast.classList.add("hiding");
+      setTimeout(() => toast.remove(), 300);
+    }, 4000);
   }
 
   // Mostrar error inline en un campo específico
@@ -1860,13 +1880,12 @@
     const container = document.getElementById("activasContainer");
     if (!container) return;
 
-    // Si está vacío o tiene skeleton/error, renderizar tabla vacía
+    // Solo crear estructura de tabla si está vacío o tiene estado especial
     if (
-      !container.querySelector(".empty-state") &&
-      !container.querySelector(".loading") &&
-      !container.querySelector(".error-state")
+      container.querySelector(".empty-state") ||
+      container.querySelector(".loading") ||
+      container.querySelector(".error-state")
     ) {
-      // Si no hay elementos especiales, crear la tabla
       container.innerHTML = `
       <div class="table-container">
         <table>
@@ -1900,7 +1919,7 @@
       .replace(/[^a-z]/g, "");
 
     const row = document.createElement("tr");
-    row.className = "operacion-row row-pending";
+    row.className = "operacion-row anim-row-pending";
     row.innerHTML = `
     <td class="td-nowrap">
       <div style="margin-bottom:2px;">${fechaInicio}</div>

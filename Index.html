@@ -54,19 +54,8 @@
         <p>Control y seguimiento de operaciones · BTC · ETH · USDT</p>
       </div>
 
-      <!-- Alertas -->
-      <div id="alertSuccess" class="alert alert-success">
-        <i data-lucide="circle-check"></i>
-        <span id="alertSuccessMsg"></span>
-      </div>
-      <div id="alertError" class="alert alert-error">
-        <i data-lucide="circle-x"></i>
-        <span id="alertErrorMsg"></span>
-      </div>
-      <div id="alertInfo" class="alert alert-info">
-        <i data-lucide="info"></i>
-        <span id="alertInfoMsg"></span>
-      </div>
+      <!-- Toast Container -->
+      <div id="toastContainer" class="toast-container"></div>
 
       <!-- Operaciones en Curso -->
       <div class="operaciones-section">
@@ -269,8 +258,9 @@
 
           <div class="form-actions">
             <button type="submit" class="btn btn-primary" id="btnGuardar">
-              <i data-lucide="save"></i>
-              Guardar Operación
+              <i data-lucide="save" class="btn-icon-normal"></i>
+              <span class="btn-spinner-container" style="display:none"><span class="btn-spinner"></span></span>
+              <span class="btn-text">Guardar Operación</span>
             </button>
             <button
               type="button"
@@ -284,11 +274,6 @@
             </button>
           </div>
         </form>
-
-        <div id="formLoading" class="loading">
-          <div class="spinner"></div>
-          <p>Guardando operación...</p>
-        </div>
       </div>
     </div>
 
@@ -319,14 +304,12 @@
           </div>
           <div class="form-actions">
             <button type="submit" class="btn btn-primary" id="btnGuardarCapital">
-              <i data-lucide="save"></i> Guardar Capital
+              <i data-lucide="save" class="btn-icon-normal"></i>
+              <span class="btn-spinner-container" style="display:none"><span class="btn-spinner"></span></span>
+              <span class="btn-text">Guardar Capital</span>
             </button>
           </div>
         </form>
-        <div id="capitalLoading" class="loading">
-          <div class="spinner"></div>
-          <p>Creando pestaña...</p>
-        </div>
       </div>
     </div>
 
