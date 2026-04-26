@@ -313,14 +313,16 @@
 
   // Función para actualizar el atributo step del campo monto según la moneda
   function actualizarStepMonto(moneda) {
-    DOM.monto.step = (moneda === "ETH" || moneda === "BTC") ? "0.0001" : "0.01";
+    DOM.monto.step = (moneda === "ETH" || moneda === "BTC") ? "0.000001" : "0.0001";
   }
 
-  // Función para limitar el monto a máximo 4 decimales
+  // Función para limitar decimales según moneda: ETH/BTC = 6, USDT = 4
   function limitarDecimalesMonto(e) {
+    const moneda = document.getElementById("moneda").value;
+    const maxDec = (moneda === "ETH" || moneda === "BTC") ? 6 : 4;
     const partes = e.target.value.split(".");
-    if (partes.length > 1 && partes[1].length > 4) {
-      e.target.value = partes[0] + "." + partes[1].slice(0, 4);
+    if (partes.length > 1 && partes[1].length > maxDec) {
+      e.target.value = partes[0] + "." + partes[1].slice(0, maxDec);
     }
   }
 
