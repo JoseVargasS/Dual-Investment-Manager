@@ -401,6 +401,12 @@
        return { valid: false, field: "cex" };
      }
 
+      const moneda = document.getElementById("moneda").value;
+      if (!moneda) {
+        showFieldError("groupMoneda", "errorMoneda");
+        return { valid: false, field: "moneda" };
+      }
+
       const montoStr = document.getElementById("monto").value;
       const monto = parseFloat(montoStr);
       if (!monto || isNaN(monto) || monto <= 0) {
@@ -413,8 +419,6 @@
         showFieldError("groupMonto", "errorMonto");
         return { valid: false, field: "monto" };
       }
-
-     const moneda = document.getElementById("moneda").value;
      if (!moneda) {
        showFieldError("groupMoneda", "errorMoneda");
        return { valid: false, field: "moneda" };
