@@ -74,21 +74,63 @@
       });
     }
 
-    // Cerrar selector de CEX al hacer click fuera
+    // Cerrar cualquier dropdown abierto al hacer click fuera
     document.addEventListener("click", function (e) {
-      const container = document.getElementById("cexCustomContainer");
-      const options = document.getElementById("cexOptions");
-      const trigger = document.getElementById("cexTrigger");
+      document.querySelectorAll(".custom-options.show, #capitalOptions.show").forEach(function (opts) {
+        const container = opts.closest(".custom-select-container") || opts.closest(".capital-selector-container");
+        if (container && !container.contains(e.target)) {
+          opts.classList.remove("show");
+          const trigger = container.querySelector(".custom-select-trigger");
+          if (trigger) trigger.classList.remove("active");
+          container.classList.remove("open");
+          container.closest(".card")?.classList.remove("dropdown-open");
+        }
+      });
+    });
 
-      // Verificar si el clic fue dentro del contenedor del dropdown
-      if (container && !container.contains(e.target)) {
-        // Si el clic fue fuera del contenedor, cerrar el dropdown
-        options?.classList.remove("show");
-        trigger?.classList.remove("active");
-        container.classList.remove("open");
-        container.closest(".card")?.classList.remove("dropdown-open");
+    // Keyboard accessibility for theme toggle
+    const themeBtn = document.getElementById("themeToggleBtn");
+    if (themeBtn) {
+      themeBtn.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          toggleTheme();
+        }
+      });
+    }
+
+    // Global Escape key to close modals
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") {
+        if (document.getElementById("modalFormulario")?.classList.contains("active")) {
+          cerrarFormularioDirecto();
+        }
+        if (document.getElementById("modalDetalle")?.classList.contains("active")) {
+          cerrarModal();
+        }
+        if (document.getElementById("modalCapital")?.classList.contains("show")) {
+          cerrarModalCapitalDirecto();
+        }
+        if (document.getElementById("confirmModal")) {
+          document.getElementById("confirmModal")?.remove();
+        }
+        if (document.getElementById("editB6Modal")) {
+          document.getElementById("editB6Modal")?.remove();
+        }
       }
     });
+
+    // Focus management for modals
+    const modalForm = document.getElementById("modalFormulario");
+    if (modalForm) {
+      const observer = new MutationObserver(function () {
+        if (modalForm.classList.contains("active")) {
+          const firstInput = modalForm.querySelector("input, select, button");
+          if (firstInput) setTimeout(function () { firstInput.focus(); }, 100);
+        }
+      });
+      observer.observe(modalForm, { attributes: true, attributeFilter: ["class"] });
+    }
 
     // Pequeño retardo para que google.script.run esté disponible
     setTimeout(function () {
@@ -245,26 +287,35 @@
        };
 
        trigger.addEventListener("click", (e) => {
-         e.preventDefault();
-         e.stopPropagation();
-         const isOpen = optionsContainer.classList.contains("show");
+          e.preventDefault();
+          e.stopPropagation();
+          toggleCEXDropdown();
+        });
 
-         // Close all other open dropdowns first
-         closeAllDropdowns();
+        trigger.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggleCEXDropdown();
+          }
+        });
 
-         if (!isOpen) {
-           optionsContainer.classList.add("show");
-           trigger.classList.add("active");
-           container.classList.add("open");
-           container.closest(".card")?.classList.add("dropdown-open");
-         } else {
-           // Si ya está abierto, lo cerramos
-           optionsContainer.classList.remove("show");
-           trigger.classList.remove("active");
-           container.classList.remove("open");
-           container.closest(".card")?.classList.remove("dropdown-open");
-         }
-       });
+        function toggleCEXDropdown() {
+          const isOpen = optionsContainer.classList.contains("show");
+
+          closeAllDropdowns();
+
+          if (!isOpen) {
+            optionsContainer.classList.add("show");
+            trigger.classList.add("active");
+            container.classList.add("open");
+            container.closest(".card")?.classList.add("dropdown-open");
+          } else {
+            optionsContainer.classList.remove("show");
+            trigger.classList.remove("active");
+            container.classList.remove("open");
+            container.closest(".card")?.classList.remove("dropdown-open");
+          }
+        }
 
       // Valor inicial
       seleccionarCEX("OKX");
@@ -357,7 +408,8 @@
         return { valid: false, field: "monto" };
       }
       const partes = montoStr.split(".");
-      if (partes.length > 1 && partes[1].length > 4) {
+      const maxDec = (moneda === "ETH" || moneda === "BTC") ? 6 : 4;
+      if (partes.length > 1 && partes[1].length > maxDec) {
         showFieldError("groupMonto", "errorMonto");
         return { valid: false, field: "monto" };
       }
@@ -628,7 +680,7 @@
         <thead>
           <tr>
             <th>Fecha Inicio</th><th>CEX</th><th>Monto</th><th>% APR</th>
-            <th>Tipo operación</th><th>Precio Obj.</th><th>Interés</th>
+            <th>Operación</th><th>Interés</th>
             <th>Total calc.</th><th>APR Acum.</th><th>APR Ef.</th><th>Acciones</th>
           </tr>
         </thead>
@@ -655,7 +707,7 @@
           : "-";
 
       const duracionBadge = op.tiempoCex
-        ? `<div class="badge-duration">${op.tiempoCex}</div>`
+        ? `<div class="badge-duration live">${op.tiempoCex}</div>`
         : "";
 
       html += `
@@ -677,9 +729,8 @@
         </td>
         <td><strong>${op.apr}%</strong></td>
         <td class="td-nowrap">
-          <span class="badge ${badgeClass}">${op.tipoOperacion || "-"}</span>
+          ${renderOperacionCell(op.tipoOperacion, op.precioObjetivo)}
         </td>
-        <td>$${formatearNumero(op.precioObjetivo)}</td>
         <td class="success"><strong>${interesStr}</strong></td>
         <td class="highlight"><strong>${totalStr}</strong></td>
         <td>${op.aprAcum || "-"}%</td>
@@ -708,7 +759,7 @@
       </tbody>
       <tfoot>
         <tr class="table-footer-summary">
-          <td colspan="9" class="summary-label">Total en curso:</td>
+          <td colspan="8" class="summary-label">Total en curso:</td>
           <td colspan="2" class="summary-value">$${totalSumaCalculada.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
         </tr>
       </tfoot>
@@ -745,7 +796,7 @@
         <thead>
           <tr>
             <th>Fecha Inicio</th><th>CEX</th><th>Monto</th><th>% APR</th>
-            <th>Tipo op.</th><th>Precio Obj.</th><th>Interés</th>
+            <th>Operación</th><th>Interés</th>
             <th>Total calc.</th><th>Final Obtenido</th><th>APR Acum.</th>
             <th>APR Ef. Diario</th>
           </tr>
@@ -793,9 +844,8 @@
         </td>
         <td><strong>${op.apr}%</strong></td>
         <td class="td-nowrap">
-          <span class="badge ${badgeClass}">${op.tipoOperacion || "-"}</span>
+          ${renderOperacionCell(op.tipoOperacion, op.precioObjetivo)}
         </td>
-        <td>$${formatearNumero(op.precioObjetivo)}</td>
         <td class="success"><strong>${interesStr}</strong></td>
         <td class="highlight"><strong>${totalStr}</strong></td>
         <td>${finalStr}</td>
@@ -1129,6 +1179,12 @@
       return card;
     }
 
+    function esValorNegativo(str) {
+      if (!str || str === "-") return false;
+      const num = parseFloat(String(str).replace(/[^0-9.-]/g, ""));
+      return !isNaN(num) && num < 0;
+    }
+
     let html = "";
     
     // Si es la pestaña principal, mostrar el diseño original
@@ -1141,7 +1197,7 @@
           highlightFn: (l) => l.toLowerCase().includes("min") || l.toLowerCase().includes("mín")
         });
       }
-      
+
       if (data.cuadro3 && data.cuadro3.length > 0) {
         const rows = data.cuadro3;
         function parseNum(str) {
@@ -1155,12 +1211,14 @@
         const diasVal = parseNum(rows[4] ? rows[4][2] : "0");
         const retiroVal = parseNum(rows[5] ? rows[5][2] : "0");
         const capFinal = parseNum(rows[6] ? rows[6][2] : "0");
+        const netProfitRaw = String(rows[1][2] || "").trim();
+        const netProfitClass = esValorNegativo(netProfitRaw) ? "negative net-profit" : "success net-profit";
 
         html += `
           <div class="resumen-card resumen-calc-card">
             <h3> Resultados</h3>
             <div class="resumen-item"><span class="resumen-label">Capital Inicial</span><span class="resumen-value">${sanitize(String(rows[0][2] || ""))}</span></div>
-            <div class="resumen-item"><span class="resumen-label">NET PROFIT</span><span class="resumen-value success net-profit">${sanitize(String(rows[1][2] || ""))}</span></div>
+            <div class="resumen-item"><span class="resumen-label">NET PROFIT</span><span class="resumen-value ${netProfitClass}">${sanitize(netProfitRaw)}</span></div>
             <div class="resumen-item"><span class="resumen-label">Promedio Diario</span><span class="resumen-value highlight">${sanitize(promedioStr)}/día</span></div>
             <div class="resumen-item calc-editable-item">
               <span class="resumen-label">%APR</span>
@@ -1186,14 +1244,22 @@
       html += `
         <div class="resumen-card">
           <h3> Resumen Financiero</h3>
-          ${rows.map((row, i) => `
+          ${rows.map((row, i) => {
+            const rowVal = String(row[1] || "-");
+            let valueClass = "";
+            if (i === 2) {
+              valueClass = esValorNegativo(rowVal) ? "negative net-profit" : "success net-profit";
+            } else if (i === 3 || i === 5 || i === 6) {
+              valueClass = "highlight";
+            }
+            return `
             <div class="resumen-item">
               <span class="resumen-label">${sanitize(String(row[0] || ""))}</span>
-              <span class="resumen-value ${i === 2 ? "success net-profit" : (i === 3 || i === 5 || i === 6 ? "highlight" : "")}">
-                ${(i === 0 || i === 6) && !String(row[1]).includes("S/") ? "S/ " : ""}${sanitize(String(row[1] || "-"))}${i === 3 ? "/día" : ""}
+              <span class="resumen-value ${valueClass}">
+                ${(i === 0 || i === 6) && !rowVal.includes("S/") ? "S/ " : ""}${sanitize(rowVal)}${i === 3 ? "/día" : ""}
               </span>
-            </div>
-          `).join("")}
+            </div>`;
+          }).join("")}
         </div>`;
     }
 
@@ -1267,11 +1333,14 @@
           options.classList.toggle("show");
           triggerContainer.classList.toggle("active");
         };
-        
-        document.addEventListener("click", () => {
-          options.classList.remove("show");
-          triggerContainer.classList.remove("active");
-        });
+
+        triggerContainer.onkeydown = (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            options.classList.toggle("show");
+            triggerContainer.classList.toggle("active");
+          }
+        };
       })
       .getCapitalsList();
   }
@@ -1286,6 +1355,12 @@
     document.querySelectorAll("#capitalOptions .custom-option").forEach(opt => {
       opt.classList.toggle("selected", opt.textContent === name);
     });
+
+    // Cerrar dropdown
+    const options = document.getElementById("capitalOptions");
+    const trigger = document.getElementById("capitalTrigger");
+    if (options) options.classList.remove("show");
+    if (trigger) trigger.classList.remove("active");
 
     // Refresh data
     refrescarTodo();
@@ -1641,7 +1716,7 @@
       return d.toLocaleString("es-ES", {
         day: "2-digit",
         month: "2-digit",
-        year: "numeric",
+        year: "2-digit",
         hour: "2-digit",
         minute: "2-digit",
       });
@@ -1775,6 +1850,22 @@
     return "";
   }
 
+  function getTipoColorClass(tipoOperacion) {
+    if (!tipoOperacion) return "";
+    if (tipoOperacion.startsWith("Sell")) return "operacion-tipo-sell";
+    if (tipoOperacion.startsWith("Buy")) return "operacion-tipo-buy";
+    return "";
+  }
+
+  function renderOperacionCell(tipoOperacion, precioObjetivo) {
+    if (!tipoOperacion) return "-";
+    const colorClass = getTipoColorClass(tipoOperacion);
+    const tipoHtml = colorClass
+      ? `<span class="${colorClass}">${sanitize(tipoOperacion)}</span>`
+      : `<span>${sanitize(tipoOperacion)}</span>`;
+    return `${tipoHtml} <span class="operacion-sep">a</span> <span class="operacion-precio">$${formatearNumero(precioObjetivo)}</span>`;
+  }
+
   function showAlert(type, message) {
     const container = DOM.toastContainer || document.getElementById("toastContainer");
     if (!container) return;
@@ -1784,7 +1875,7 @@
 
     const toast = document.createElement("div");
     toast.className = `toast toast-${type}`;
-    toast.innerHTML = `<i data-lucide="${iconName}"></i><span>${message}</span>`;
+    toast.innerHTML = `<span class="toast-icon"><i data-lucide="${iconName}"></i></span><span class="toast-content">${message}</span>`;
     container.appendChild(toast);
     lucide.createIcons();
 
@@ -1897,8 +1988,7 @@
               <th>CEX</th>
               <th>Monto</th>
               <th>% APR</th>
-              <th>Tipo operación</th>
-              <th>Precio Obj.</th>
+              <th>Operación</th>
               <th>Interés</th>
               <th>Total calc.</th>
               <th>Acciones</th>
@@ -1936,9 +2026,8 @@
     </td>
     <td><strong>${datos.apr}%</strong></td>
     <td class="td-nowrap">
-      <span class="badge ${badgeClass}">${datos.tipoOperacion}</span>
+      ${renderOperacionCell(datos.tipoOperacion, datos.precioObjetivo)}
     </td>
-    <td>$${formatearNumero(datos.precioObjetivo)}</td>
     <td><div class="skeleton" style="width:60px; height:18px;"></div></td>
     <td><div class="skeleton" style="width:60px; height:18px;"></div></td>
     <td></td>
@@ -2003,6 +2092,7 @@
 
   function cerrarFormulario(event) {
     if (event && event.target !== event.currentTarget) return;
+    if (window.editandoFila) cancelarEdicion();
     const modal = document.getElementById("modalFormulario");
     if (modal) {
       modal.classList.remove("active");
@@ -2022,20 +2112,17 @@
   // TEMA: MODO OSCURO / CLARO
   // ============================================
   function toggleTheme() {
-    const isLight = document.body.getAttribute("data-theme") === "light";
-    const newTheme = isLight ? "dark" : "light";
-    if (newTheme === "light") {
-      document.body.setAttribute("data-theme", "light");
-    } else {
-      document.body.removeAttribute("data-theme");
-    }
+    const newTheme = document.body.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    document.body.setAttribute("data-theme", newTheme);
     localStorage.setItem("theme", newTheme);
   }
 
   // Inicializar tema guardado
   document.addEventListener("DOMContentLoaded", () => {
     const savedTheme = localStorage.getItem("theme");
-    if (savedTheme === "light") {
+    if (savedTheme === "dark" || !savedTheme) {
+      document.body.setAttribute("data-theme", "dark");
+    } else {
       document.body.setAttribute("data-theme", "light");
     }
   });

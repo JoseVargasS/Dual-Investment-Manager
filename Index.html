@@ -14,20 +14,6 @@
   </head>
   <body>
     <div class="container">
-      <!-- Theme Toggle -->
-      <div
-        class="theme-toggle-btn"
-        id="themeToggleBtn"
-        onclick="toggleTheme()"
-        aria-label="Cambiar tema"
-      >
-        <div class="theme-toggle-icons">
-          <i data-lucide="sun" class="theme-toggle-icon"></i>
-          <i data-lucide="moon-star" class="theme-toggle-icon"></i>
-        </div>
-        <div class="theme-toggle-circle"></div>
-      </div>
-
       <!-- Header -->
       <div class="header fade-in">
         <div class="header-top-bar">
@@ -37,7 +23,7 @@
           </div>
           <div class="capital-selector-container">
             <div class="custom-select-container" id="capitalSelectorContainer">
-              <div class="custom-select-trigger" id="capitalTrigger">
+              <div class="custom-select-trigger" id="capitalTrigger" role="button" tabindex="0">
                 <span id="capitalSelectedText">Cargando...</span>
               </div>
               <div class="custom-options" id="capitalOptions"></div>
@@ -48,6 +34,20 @@
             <button class="btn-add-capital" onclick="mostrarModalCapital()" title="Añadir Capital">
               <i data-lucide="plus"></i>
             </button>
+          </div>
+          <div
+            class="theme-toggle-btn"
+            id="themeToggleBtn"
+            onclick="toggleTheme()"
+            role="button"
+            tabindex="0"
+            aria-label="Cambiar tema"
+          >
+            <div class="theme-toggle-icons">
+              <i data-lucide="sun" class="theme-toggle-icon"></i>
+              <i data-lucide="moon-star" class="theme-toggle-icon"></i>
+            </div>
+            <div class="theme-toggle-circle"></div>
           </div>
         </div>
         <h1>Inversión Dual</h1>
