@@ -1,44 +1,31 @@
-# Inversión Dual - Crypto Dashboard
+# Dual Investment Manager
 
-Aplicación web optimizada para gestionar y seguir operaciones de inversión dual en criptomonedas (BTC, ETH, USDT). Versión mejorada con optimizaciones de rendimiento y código refactorizado.
+Aplicación web para gestionar y monitorear operaciones de inversión dual en criptomonedas (BTC, ETH, USDT). Construida sobre Google Apps Script con interfaz glassmorphism y soporte multi-capital.
 
-## 🚀 Mejoras Implementadas
+## Stack Tecnológico
 
-### **Optimizaciones de Rendimiento**
+- **Backend**: Google Apps Script (GAS) — CRUD contra Google Sheets
+- **Frontend**: Vanilla JS (sin frameworks)
+- **Datos**: Google Sheets (múltiples pestañas: "CAPITAL 1", "CAPITAL 2", etc.)
+- **CSS**: Sistema glassmorphism con ~120 custom properties
+- **Iconos**: Lucide (CDN)
+- **Fuente**: Space Grotesk (Google Fonts)
+- **Hosting**: GAS Web App deployment
+- **Sin build tools, sin frameworks, sin package.json**
 
-- **Reducción de llamadas a SpreadsheetApp.flush()**: Solo cuando es estrictamente necesario
-- **Batch operations**: Formateo y escritura en lotes para mejorar velocidad
-- **DOM caching**: Referencias a elementos DOM almacenadas en caché
-- **Event delegation**: Eventos delegados para mejor rendimiento en tablas dinámicas
-- **Debounce utility**: Para inputs que requieren procesamiento
-
-### **Mejoras de Código**
-
-- **Manejo robusto de fechas**: UTC para evitar problemas de timezone
-- **Validación mejorada**: Formularios con validación en tiempo real
-- **Error handling**: Manejo de errores consistente y logging
-- **Refactorización**: Código más limpio y mantenible
-- **Optimizaciones CSS**: Archivo CSS organizado y optimizado
-
-### **Correcciones de Bugs**
-
-- **Date handling**: Corrección de problemas de timezone en fechas
-- **DOM caching**: Uso consistente de referencias almacenadas
-- **Form validation**: Validación más robusta de campos numéricos
-- **Error reporting**: Mensajes de error más informativos
-
-## 📁 Estructura del Proyecto
+## Estructura del Proyecto
 
 ```
 Dual Investment Manager/
-├── Index.html      # Plantilla principal HTML (optimizada)
-├── Styles.html     # Estilos CSS (Glassmorphism UI - optimizado)
-├── Scripts.html    # Lógica JavaScript del cliente (refactorizado)
-├── Codigo.gs       # Google Apps Script (backend - optimizado)
-└── README.md       # Este archivo (actualizado)
+├── Index.html      # Plantilla HTML principal (318 líneas)
+├── Styles.html     # CSS — glassmorphism, dark/light, responsive (3243 líneas)
+├── Scripts.html    # JS — lógica cliente, formularios, rendering (2042 líneas)
+├── Codigo.gs       # GAS — backend CRUD, fórmulas, tasa USD (738 líneas)
+├── AGENTS.md       # Contexto del repo para herramientas AI
+└── README.md
 ```
 
-## 📋 Requisitos
+## Requisitos
 
 - Cuenta de Google
 - Google Sheets (Google Drive)
@@ -46,308 +33,193 @@ Dual Investment Manager/
 
 ---
 
-## 🛠️ Cómo Crear la Hoja de Google
+## Configuración
 
-### 1. Crear Nueva Hoja de Cálculo
+### 1. Crear la Hoja de Cálculo
 
-1. Ve a [sheet.new](https://sheet.new) o [drive.google.com](https://drive.google.com)
-2. Crea una **Nueva hoja de cálculo** en blanco
-3. Nombra el archivo: `Inversión Dual - Dashboard`
+1. Ir a [sheet.new](https://sheet.new) o [drive.google.com](https://drive.google.com)
+2. Crear una **nueva hoja de cálculo** en blanco
+3. Nombrar el archivo: `Inversión Dual - Dashboard`
 
-### 2. Configurar Pestañas
+### 2. Estructura de Pestañas
 
-La app usa **1 pestaña principal**:
+La app soporta múltiples capitales. La pestaña por defecto es `CAPITAL 1`.
 
-#### Pestaña: `CAPITAL 1`
+| Fila | Contenido |
+|---|---|
+| 1-15 | Reservado (totales y configuraciones) |
+| 16 | Inicio de datos (`FIRST_DATA_ROW = 16`) |
+| 16-17 | Encabezados de sección |
+| 18 | Headers de columnas |
+| 21+ | Operaciones activas/completadas |
 
-| Fila   | Contenido                                 |
-| ------ | ----------------------------------------- |
-| 1-15   | Reserved (totales y configuraciones)      |
-| 16-17  | Encabezados de sección                    |
-| **18** | Headers de columnas                       |
-| **16** | **Inicio de datos (FIRST_DATA_ROW = 16)** |
-| 21+    | Operaciones activas/completadas           |
+#### Columnas (desde columna E = col 5)
 
-##### Estructura de Columnas (Desde columna E = columna 5):
-
-| #   | Letra | Campo               | Descripción                            |
-| --- | ----- | ------------------- | -------------------------------------- |
-| 5   | E     | FECHA INICIO        | Fecha y hora de inicio                 |
-| 6   | F     | FECHA FIN           | Fecha de finalización                  |
-| 7   | G     | CEX                 | Exchange (Binance, Bybit, OKX, Bitget) |
-| 8   | H     | MONTO               | Monto inicial invertido                |
-| 9   | I     | MONEDA              | Moneda (USDT, ETH, BTC)                |
-| 10  | J     | %APR                | Tasa APR anual                         |
-| 11  | K     | TIPO                | Tipo operación (Buy/Sell ETH/BTC)      |
-| 12  | L     | PRECIO OBJ.         | Precio objetivo                        |
-| 13  | M     | TIEMPO CEX          | Tiempo en CEX (días)                   |
-| 14  | N     | DURACION            | Duración (horas)                       |
-| 17  | Q     | FINAL OBTENIDO      | Monto final recibido                   |
-| 18  | R     | INTERÉS             | Interés generado                       |
-| 19  | S     | TOTAL               | Total (monto + interés)                |
-| 21  | U     | MONEDA FINAL        | Moneda de cierre                       |
-| 22  | V     | APR ACUMULADO       | APR acumulado                          |
-| 23  | W     | APR EFECTIVO DIARIO | APR efectivo diario                    |
+| # | Letra | Campo | Tipo |
+|---|---|---|---|
+| 5 | E | Fecha Inicio | Manual |
+| 6 | F | Fecha Fin | Manual |
+| 7 | G | CEX | Manual |
+| 8 | H | Monto | Manual |
+| 9 | I | Moneda | Manual |
+| 10 | J | APR | Manual |
+| 11 | K | Tipo | Manual |
+| 12 | L | Precio Objetivo | Manual |
+| 13 | M | Días | Fórmula |
+| 14 | N | "dia" | Etiqueta |
+| 15 | O | Horas | Fórmula |
+| 16 | P | "hrs" | Etiqueta |
+| 17 | Q | Tiempo decimal | Fórmula |
+| 18 | R | Interés | Fórmula |
+| 19 | S | Final Calc | Fórmula |
+| 20 | T | Final Obtenido Valor | Manual (al completar) |
+| 21 | U | Final Obtenido Moneda | Manual (al completar) |
+| 22 | V | APR Acum | Fórmula |
+| 23 | W | APR Efectivo | Fórmula |
 
 ### 3. Configurar Google Apps Script
 
-1. En la hoja, ve a **Extensiones → Apps Script**
-2. Crea un nuevo proyecto
-3. Copia el contenido de `Codigo.gs`
+1. En la hoja, ir a **Extensiones → Apps Script**
+2. Crear un nuevo proyecto
+3. Copiar el contenido de `Codigo.gs`
 
-#### Actualizar el ID de la hoja:
-
-En `Codigo.gs`, línea 9:
+Actualizar el ID de la hoja en `Codigo.gs`, línea 9:
 
 ```javascript
 const SPREADSHEET_ID = "TU_SPREADSHEET_ID_AQUI";
 ```
 
-Para obtener el ID de tu hoja:
-
-- Abre tu hoja de cálculo
-- Mira la URL: `https://docs.google.com/spreadsheets/d/1g9JBdaZ7eAAha.../edit`
-- El ID es la parte entre `/d/` y `/edit`: `1g9JBdaZ7eAAha...`
+El ID se obtiene de la URL: `https://docs.google.com/spreadsheets/d/XXXXX/edit` → la parte `XXXXX`.
 
 ### 4. Desplegar la App Web
 
 1. En Apps Script: **Deploy → New deployment**
-2. Selecciona **Web app**
-3. Configura:
-   - **Description**: v2.0 (optimizado)
+2. Seleccionar **Web app**
+3. Configurar:
    - **Execute as**: Me
-   - **Who has access**: Only myself (o Anyone with Google Account si quieres compartir)
+   - **Who has access**: Only myself (o Anyone with Google Account)
 4. Click **Deploy**
-5. Copia la **URL de la app** generada
+5. Copiar la URL generada
 
 ---
 
-## 📱 Cómo Usar la App
+## Uso
 
 ### Nueva Operación
 
-1. Completa el formulario:
-   - **Fecha y Hora de Inicio**: Hora de inicio (default 4:00 AM UTC)
-   - **CEX**: Exchange (Binance, Bybit, OKX, Bitget)
-   - **Monto**: Cantidad a invertir (decimales automáticos según moneda)
-   - **Moneda**: USDT, ETH o BTC
-   - **% APR**: Tasa anual esperada
-   - **Tipo de Operación**:
-     - `Buy ETH low` = Comprar ETH bajo precio
-     - `Sell ETH high` = Vender ETH alto precio
-     - `Buy BTC low` = Comprar BTC bajo precio
-     - `Sell BTC high` = Vender BTC alto precio
-   - **Precio Objetivo**: Precio target
-
+1. Completar formulario: Fecha inicio, CEX (Binance/Bybit/OKX/Bitget), Monto, Moneda (USDT/ETH/BTC), APR, Tipo (Buy/Sell ETH/BTC), Precio Objetivo
 2. Click **Guardar Operación**
 
 ### Completar Operación
 
-1. En "Operaciones en Curso", selecciona la moneda final en el dropdown
-2. Confirma la finalización
+1. En "Operaciones en Curso", seleccionar moneda final en el dropdown
+2. Confirmar finalización
 
-### Editar Operación
+### Editar / Eliminar
 
-1. Click en botón de editar (lápiz) en la fila
-2. Modifica los valores
-3. Click **Actualizar Operación**
+- Editar: click en ícono de lápiz → modificar valores → **Actualizar Operación**
+- Eliminar: click en ícono de papelera → confirmar
 
-### Eliminar Operación
+### Multi-Capital
 
-1. Click en botón de eliminar (papelera)
-2. Confirma la eliminación
+- Usar el selector de capital en el header para cambiar entre pestañas
+- Crear nuevos capitales desde el selector (se crea una nueva pestaña "CAPITAL N")
 
-### Calculadora Interactiva
+### Tema Claro/Oscuro
 
-1. En la sección "Resultados", edita los valores de:
-   - **%APR**: Tasa de interés anual
-   - **Días**: Período de inversión
-   - **Retiro mensual**: Monto a retirar mensualmente
-2. El **Capital Final** se recalcula automáticamente
+- Toggle en el header para alternar entre dark (default) y light theme
+- Persistido en `localStorage`
 
 ---
 
-## 🎨 Estilos (Glassmorphism UI Optimizado)
+## Funciones del Backend (GAS)
 
-El UI usa efectos **glassmorphism** modernos con optimizaciones de rendimiento:
+| Función GAS | Descripción |
+|---|---|
+| `obtenerOperaciones(sheetName)` | Lee todas las filas → `{ activas[], completadas[] }` |
+| `agregarOperacion(datos, sheetName)` | Crea fila con fórmulas |
+| `actualizarOperacionFila(datos, sheetName)` | Actualiza fila existente |
+| `eliminarOperacionFila(fila, sheetName)` | Elimina fila |
+| `completarOperacion(fila, monedaFinal, sheetName)` | Marca como completada |
+| `obtenerResumen(sheetName)` | Resumen financiero |
+| `actualizarCelda(celda, valor, nota, sheetName)` | Edita celda B4/B6 |
+| `getCapitalsList()` | Lista pestañas de capital |
+| `crearNuevoCapital(datos)` | Crea nueva pestaña |
 
-- **Fondo**: Negro (#050505) con grid sutil y orbes flotantes
-- **Cards**: Efecto glass muy transparente con blur (optimizado para GPU)
-- **Bordes**: Sutiles con glow verde (#00ff94)
-- **Tipografía**: Inter (UI) + JetBrains Mono (números)
-- **Responsive**: Optimizado para móvil con fuentes grandes
-- **Animaciones**: Suaves con `requestAnimationFrame`
+## Flujo de Datos
+
+```
+Acción del usuario → JS (google.script.run) → Codigo.gs (SpreadsheetApp)
+→ Google Sheets → JSON response → JS SuccessHandler → Actualización DOM
+```
+
+---
+
+## Arquitectura CSS
+
+- **Dark theme**: `:root` (default) — fondo `#050505`, acento verde `#00ff94`
+- **Light theme**: `[data-theme="light"]` override
+- **Persistido en**: `localStorage`
+- **Design system**: Glassmorphism — `--glass-bg`, `--glass-border`, `backdrop-filter: blur()`, glow verde
+- **Tipografía**: Space Grotesk (main + mono)
+- **Responsive**: Mobile-first con breakpoints optimizados
 
 ### Variables CSS Principales
 
 ```css
---primary: #00ff94 /* Verde - Principal */ --secondary: #00d4ff /* Cyan */
-  --danger: #ff4d6d /* Rojo */ --warning: #ffd166 /* Oro */ --dark: #050505
-  /* Fondo negro */ --dark-2: #080808 /* Fondo secundario */ --text: #eeeeee
-  /* Texto claro */ --text-muted: #777777 /* Texto muted */;
+--primary: #00ff94;
+--secondary: #00d4ff;
+--danger: #ff4d6d;
+--warning: #ffd166;
+--dark: #050505;
+--dark-2: #080808;
+--text: #eeeeee;
+--text-muted: #777777;
 ```
 
-### Optimizaciones Implementadas
+---
 
-- **CSS organizado**: Mejor estructura y comentarios
-- **Performance**: Animaciones optimizadas con `will-change`
-- **Mobile-first**: Diseño responsivo mejorado
-- **Accessibility**: Mejor contraste y semántica
+## Patrones Clave del Frontend
+
+| Patrón | Implementación |
+|---|---|
+| DOM caching | `DOM.elId = document.getElementById("elId")` en `cacheDOM()` |
+| Event delegation | Un listener por contenedor con `e.target.closest()` |
+| RAF | `raf(() => { ... })` para animaciones |
+| Sanitize | `sanitize(str)` antes de `innerHTML` con datos de usuario |
+| Confirmaciones | `mostrarConfirmacion(mensaje, onConfirm, onCancel)` |
+| Silent reload | `cargarOperaciones(true)` — sin indicador de carga |
+| Form loading | `setFormLoading(true/false)` — deshabilita botón, muestra spinner |
+| Validación | `showFieldError(groupId, errorId)` — `.has-error` + `.show` |
+| Animaciones de fila | CSS: `anim-row-pending/completing/exit/collapse/edit/new` |
+
+### Reglas de Decimales por Moneda
+
+| Moneda | Decimales input | Decimales display | Prefijo |
+|---|---|---|---|
+| USDT | 4 (`step="0.0001"`) | 2 | `$` |
+| ETH | 6 (`step="0.000001"`) | 6 | — |
+| BTC | 6 (`step="0.000001"`) | 6 | — |
 
 ---
 
-## 🔧 Solución de Problemas
+## Solución de Problemas
 
-### Error: "No se pudo conectar con Google Apps Script"
-
-1. Verifica que la app esté desplegada correctamente
-2. Confirma el SPREADSHEET_ID en Codigo.gs coincida con tu hoja
-3. Verifica que la pestaña se llame exactamente "CAPITAL 1"
-4. Revisa los permisos de ejecución en Apps Script
-
-### Error: "No hay operaciones"
-
-1. Verifica que los datos empiecen en fila 16 (FIRST_DATA_ROW)
-2. Confirma que las columnas E a W existan
-3. Revisa los encabezados en fila 18
-
-### La app no carga/en blanco
-
-1. Abre la consola del navegador (F12 → Console)
-2. Revisa los errores de JavaScript
-3. Verifica la URL de despliegue sea correcta
-
-### Duplicados en select CEX
-
-- El código ya limpia el select antes de agregar opciones para evitar duplicados
+| Problema | Solución |
+|---|---|
+| "No se pudo conectar con GAS" | Verificar despliegue, SPREADSHEET_ID, nombre de pestaña, permisos |
+| "No hay operaciones" | Datos deben empezar en fila 16, columnas E-W, headers en fila 18 |
+| App en blanco | Abrir consola (F12), revisar errores JS, verificar URL de despliegue |
+| Duplicados en select CEX | El código limpia el select antes de agregar opciones |
 
 ---
 
-## 🔍 Detalles Técnicos (Optimizados)
+## Licencia
 
-### Backend (Codigo.gs - Optimizado)
-
-- **SPREADSHEET_ID**: ID único de la hoja
-- **SHEET_NAME**: Nombre de la pestaña principal ("CAPITAL 1")
-- **FIRST_DATA_ROW**: Fila inicial de datos (16)
-- **Columnas**: E (5) a W (23)
-- **Batch operations**: Formateo y escritura en lotes
-- **Cache**: Cache de tasa de cambio (10 minutos)
-- **Logging**: Logger integrado para debugging
-
-### Frontend (HTML/JS/CSS - Optimizado)
-
-- **UI Vanilla**: Sin frameworks, máximo rendimiento
-- **Glassmorphism**: Efectos visuales optimizados para GPU
-- **DOM caching**: Referencias almacenadas para acceso rápido
-- **Event delegation**: Eventos delegados para mejor rendimiento
-- **Skeleton loaders**: Indicadores de carga optimizados
-- **Responsive**: Mobile-first con breakpoints optimizados
-- **Accessibility**: Mejor semántica y contraste
-
-### Optimizaciones de Rendimiento
-
-1. **Reducción de SpreadsheetApp.flush()**: Solo cuando es necesario
-2. **Batch formatting**: Aplicación de formatos en lotes
-3. **DOM caching**: Evita búsquedas repetidas de elementos
-4. **Event delegation**: Menos listeners, mejor rendimiento
-5. **Debounce**: Para inputs que requieren procesamiento
-6. **requestAnimationFrame**: Animaciones suaves
-
-### Manejo de Errores
-
-- **Validación en tiempo real**: Formularios con validación inmediata
-- **Mensajes informativos**: Errores claros y específicos
-- **Fallbacks**: Alternativas cuando fallan operaciones
-- **Logging**: Registro detallado para debugging
+MIT License
 
 ---
 
-## 📊 Características Principales
-
-### ✅ Gestión de Operaciones
-
-- Agregar nuevas operaciones
-- Editar operaciones existentes
-- Completar operaciones con moneda final
-- Eliminar operaciones con confirmación
-
-### 📈 Dashboard de Resumen
-
-- Resumen BBVA con valores actualizados
-- Objetivos con tasa de cambio en tiempo real
-- Calculadora interactiva de resultados
-- Visualización de APR acumulado y efectivo
-
-### 🎨 UI Moderna
-
-- Glassmorphism con efectos blur
-- Animaciones suaves
-- Diseño responsive
-- Temas oscuro/verde
-
-### 🔄 Sincronización en Tiempo Real
-
-- Actualización automática de datos
-- Cache de tasa de cambio
-- Feedback visual inmediato
-- Skeleton loaders durante carga
-
----
-
-## 🚀 Próximas Mejoras (Roadmap)
-
-### Fase 1 - Optimizaciones (Completado)
-
-- ✅ Refactorización de código
-- ✅ Optimización de rendimiento
-- ✅ Mejora de manejo de errores
-- ✅ Documentación actualizada
-
-### Fase 2 - Nuevas Funcionalidades (Planeado)
-
-- Gráficos de rendimiento
-- Exportación de datos (CSV/PDF)
-- Notificaciones push
-- Multi-usuario con permisos
-
-### Fase 3 - Escalabilidad (Futuro)
-
-- API REST para integraciones
-- Dashboard multi-exchange
-- Análisis predictivo
-- Mobile app nativa
-
----
-
-## 📝 Licencia
-
-MIT License - Uso libre.
-
----
-
-## 🤝 Contribuciones
-
-Las contribuciones son bienvenidas. Por favor:
-
-1. Fork el repositorio
-2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
-
----
-
-## 📞 Soporte
-
-Para soporte o preguntas:
-
-- Revisa la sección de [Solución de Problemas](#-solución-de-problemas)
-- Abre un issue en el repositorio
-- Contacta al desarrollador principal
-
----
-
-**Versión**: 2.0 (Optimizada)  
-**Última actualización**: Abril 2026  
-**Estado**: ✅ Producción
+**Versión**: 3.0
+**Última actualización**: Abril 2026
+**Estado**: Producción
