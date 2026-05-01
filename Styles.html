@@ -95,6 +95,8 @@
     --transition-fast: 150ms ease;
     --transition-normal: 250ms ease;
     --transition-slow: 350ms ease;
+    --row-anim-duration: 420ms;
+    --row-anim-ease: cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   /* Dark Theme - Robinhood style dark */
@@ -1868,96 +1870,66 @@
   }
 
   /* Row animations */
-  .anim-row-pending {
-    opacity: 0.7;
+  .anim-row-pending,
+  .anim-row-new {
+    animation: rowEnter var(--row-anim-duration) var(--row-anim-ease) both;
   }
 
   .anim-row-pending td {
-    background: var(--bg-tertiary);
+    background: color-mix(in srgb, var(--primary) 8%, var(--bg-secondary));
   }
 
   .anim-row-completing td {
-    background: var(--rh-green-light);
+    background: color-mix(in srgb, var(--primary) 12%, var(--bg-secondary));
   }
 
-  [data-theme="dark"] .anim-row-completing td {
-    background: rgba(0, 200, 5, 0.1);
-  }
-
-  [data-theme="light"] .anim-row-completing td {
-    background: rgba(0, 200, 5, 0.07);
-  }
-
-  .anim-row-exit {
-    animation: slideOutRight 0.4s ease forwards;
-  }
-
-  @keyframes slideOutRight {
-    from {
-      opacity: 1;
-      transform: translateX(0);
-    }
-    to {
-      opacity: 0;
-      transform: translateX(30px);
-    }
-  }
-
+  .anim-row-exit,
   .anim-row-collapse {
-    animation: slideOutLeft 0.4s ease forwards;
-  }
-
-  @keyframes slideOutLeft {
-    from {
-      opacity: 1;
-      transform: translateX(0);
-    }
-    to {
-      opacity: 0;
-      transform: translateX(-30px);
-    }
-  }
-
-  .anim-row-new {
-    animation: slideIn 0.4s ease;
+    animation: rowExit var(--row-anim-duration) ease-in forwards;
   }
 
   .anim-row-edit {
-    animation: rowPulse 1.2s ease forwards;
+    animation: rowEdit 900ms var(--row-anim-ease) both;
   }
 
-  @keyframes rowPulse {
-    0%,
-    100% {
-      background: transparent;
-    }
-    50% {
-      background: var(--rh-yellow);
-    }
-  }
-
-  [data-theme="dark"] .anim-row-edit {
-    animation: rowPulseDark 1.2s ease forwards;
-  }
-
-  @keyframes rowPulseDark {
-    0%,
-    100% {
-      background: transparent;
-    }
-    50% {
-      background: rgba(255, 193, 7, 0.2);
-    }
-  }
-
-  @keyframes slideIn {
-    from {
+  @keyframes rowEnter {
+    0% {
       opacity: 0;
-      transform: translateY(-10px);
+      transform: translateY(-8px) scale(0.995);
+      filter: saturate(0.85);
     }
-    to {
+    65% {
       opacity: 1;
-      transform: translateY(0);
+      transform: translateY(0) scale(1);
+      filter: saturate(1.15);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      filter: saturate(1);
+    }
+  }
+
+  @keyframes rowExit {
+    0% {
+      opacity: 1;
+      transform: translateX(0) scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: translateX(18px) scale(0.985);
+    }
+  }
+
+  @keyframes rowEdit {
+    0%,
+    100% {
+      box-shadow: inset 0 0 0 0 rgba(255, 193, 7, 0);
+      filter: brightness(1);
+    }
+    35% {
+      box-shadow: inset 3px 0 0 var(--warning);
+      filter: brightness(1.14);
     }
   }
 
@@ -2343,18 +2315,18 @@
     pointer-events: none;
     z-index: 9999;
     background: var(--danger);
-    animation: shatterBurst 0.8s ease-out forwards;
+    animation: shatterBurst 520ms var(--row-anim-ease) forwards;
   }
 
   @keyframes shatterBurst {
     0% {
-      opacity: 1;
+      opacity: 0.85;
       transform: translate(0, 0) scale(1);
     }
     100% {
       opacity: 0;
       transform: translate(var(--dx, 50px), var(--dy, -50px))
-        scale(var(--scale, 0.3));
+        scale(var(--scale, 0.35));
     }
   }
 

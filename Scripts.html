@@ -1122,7 +1122,7 @@
     );
     if (editRow) {
       editRow.classList.add("anim-row-edit");
-      setTimeout(() => editRow.classList.remove("anim-row-edit"), 1500);
+      setTimeout(() => editRow.classList.remove("anim-row-edit"), 900);
     }
 
     if (op.fechaInicio) {
@@ -1884,8 +1884,7 @@
     if (id === "countHistorial") {
       el.textContent = count + (count === 1 ? " completada" : " completadas");
     } else if (id === "countActivas") {
-      el.textContent =
-        count === 0 ? "0" : count + (count === 1 ? " activa" : " activas");
+      el.textContent = count + (count === 1 ? " activa" : " activas");
     } else {
       el.textContent = count;
     }
@@ -2204,12 +2203,12 @@
     const left = rect.left;
 
     // Crear partículas solo dentro del área de la fila
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < 14; i++) {
       const shard = document.createElement("div");
       shard.className = "shatter-fragment";
 
       // Partículas pequeñas dentro de la fila
-      const size = Math.random() * 10 + 4;
+      const size = Math.random() * 6 + 3;
       const posX = left + Math.random() * width;
       const posY = top + Math.random() * height;
 
@@ -2220,10 +2219,10 @@
       shard.style.borderRadius = "50%";
 
       // Dispersión contenida solo dentro del área de la fila
-      const dx = (Math.random() - 0.5) * width * 0.5;
-      const dy = (Math.random() - 0.5) * height * 0.3;
-      const scale = Math.random() * 0.3 + 0.1;
-      const delay = Math.random() * 0.15;
+      const dx = (Math.random() - 0.5) * width * 0.28;
+      const dy = (Math.random() - 0.5) * height * 0.22;
+      const scale = Math.random() * 0.25 + 0.12;
+      const delay = Math.random() * 0.08;
 
       shard.style.setProperty("--dx", dx + "px");
       shard.style.setProperty("--dy", dy + "px");
@@ -2231,7 +2230,7 @@
       shard.style.animationDelay = delay + "s";
 
       document.body.appendChild(shard);
-      setTimeout(() => shard.remove(), 1200);
+      setTimeout(() => shard.remove(), 720);
     }
   }
 
