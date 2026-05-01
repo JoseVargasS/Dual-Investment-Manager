@@ -138,14 +138,30 @@ function getCapitalsList() {
   }
 }
 
+function encontrarPrimeraFilaVacia(sheet) {
+  const lastRow = Math.max(sheet.getLastRow(), FIRST_DATA_ROW);
+  const numRows = lastRow - FIRST_DATA_ROW + 1;
+  const values = sheet
+    .getRange(FIRST_DATA_ROW, COL.FECHA_INICIO, numRows, 1)
+    .getValues();
+
+  for (let i = 0; i < values.length; i++) {
+    const val = values[i][0];
+    if (!val || val.toString().trim() === "") return FIRST_DATA_ROW + i;
+  }
+
+  return lastRow + 1;
+}
+
 // ============================================
 // HELPER: Serializar valor para JSON
 // ============================================
 // Convierte valores de celda a tipos JSON válidos (Date → string)
-function serCell(val, sheetName) {
+function serCell(val, sheetName, tz) {
   if (val === null || val === undefined) return null;
   if (val instanceof Date) {
     if (isNaN(val.getTime())) return null;
+    if (tz) return Utilities.formatDate(val, tz, "yyyy-MM-dd HH:mm:ss");
     try {
       const { ss } = getSheet(sheetName);
       return Utilities.formatDate(
@@ -173,13 +189,7 @@ function agregarOperacion(datos, sheetName) {
     const tz = ss.getSpreadsheetTimeZone();
 
     // Buscar primera fila vacía desde FIRST_DATA_ROW
-    let nuevaFila = FIRST_DATA_ROW;
-    const lastRow = sheet.getLastRow();
-    while (nuevaFila <= lastRow) {
-      const val = sheet.getRange(nuevaFila, COL.FECHA_INICIO).getValue();
-      if (!val || val.toString().trim() === "") break;
-      nuevaFila++;
-    }
+    const nuevaFila = encontrarPrimeraFilaVacia(sheet);
 
     // Calcular fechas de inicio y fin
     const fechaInicio = parseFechaISO(datos.fechaInicio, tz);
@@ -255,7 +265,8 @@ function agregarOperacion(datos, sheetName) {
 // Lee todas las operaciones de la hoja y las separa en activas y completadas
 function obtenerOperaciones(sheetName) {
   try {
-    const { sheet } = getSheet(sheetName);
+    const { sheet, ss } = getSheet(sheetName);
+    const tz = ss.getSpreadsheetTimeZone();
     const lastRow = sheet.getLastRow();
 
     Logger.log(
@@ -294,20 +305,20 @@ function obtenerOperaciones(sheetName) {
       // Crear objeto operación con los datos de la fila
       const operacion = {
         fila: FIRST_DATA_ROW + i,
-        fechaInicio: serCell(row[0], sheetName),
-        fechaFin: serCell(row[1], sheetName),
-        cex: serCell(row[2], sheetName),
-        monto: serCell(row[3], sheetName),
-        moneda: serCell(row[4], sheetName),
+        fechaInicio: serCell(row[0], sheetName, tz),
+        fechaFin: serCell(row[1], sheetName, tz),
+        cex: serCell(row[2], sheetName, tz),
+        monto: serCell(row[3], sheetName, tz),
+        moneda: serCell(row[4], sheetName, tz),
         apr: fmtPct(row[5]),
-        tipoOperacion: serCell(row[6], sheetName),
-        precioObjetivo: serCell(row[7], sheetName),
+        tipoOperacion: serCell(row[6], sheetName, tz),
+        precioObjetivo: serCell(row[7], sheetName, tz),
         tiempoCex: tStr,
-        tiempoDias: serCell(row[12], sheetName),
-        interes: serCell(row[13], sheetName),
-        total: serCell(row[14], sheetName),
-        final: serCell(row[15], sheetName),
-        monedaFinal: serCell(row[16], sheetName),
+        tiempoDias: serCell(row[12], sheetName, tz),
+        interes: serCell(row[13], sheetName, tz),
+        total: serCell(row[14], sheetName, tz),
+        final: serCell(row[15], sheetName, tz),
+        monedaFinal: serCell(row[16], sheetName, tz),
         aprAcum: fmtPct(row[17]),
         aprEfectivo: fmtPct(row[18]),
       };
@@ -487,16 +498,14 @@ function obtenerResumen(sheetName) {
 
     // Obtener notas y fórmulas de celdas editables
     try {
-      notaB6 = sheet.getRange("B6").getNote() || "";
+      const cellB6 = sheet.getRange("B6");
+      notaB6 = cellB6.getNote() || "";
+      formulaB6 = cellB6.getFormula() || "";
     } catch (e) {}
     try {
-      formulaB6 = sheet.getRange("B6").getFormula() || "";
-    } catch (e) {}
-    try {
-      notaB4 = sheet.getRange("B4").getNote() || "";
-    } catch (e) {}
-    try {
-      formulaB4 = sheet.getRange("B4").getFormula() || "";
+      const cellB4 = sheet.getRange("B4");
+      notaB4 = cellB4.getNote() || "";
+      formulaB4 = cellB4.getFormula() || "";
     } catch (e) {}
 
     Logger.log(

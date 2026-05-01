@@ -6,32 +6,50 @@
   let prevHistorialCount = 0;
   let currentSheet = "CAPITAL 1";
   const DEFAULT_SHEET_NAME = "CAPITAL 1";
-  const ETH_PRICE_REFRESH_MS = 2500;
+  const ETH_PRICE_REFRESH_MS = 3000;
   let ethPriceTimer = null;
+  let ethPriceRequestInFlight = false;
+
+  const FORMATO_NUMERO = new Intl.NumberFormat("es-ES", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  });
+  const FORMATO_USD = new Intl.NumberFormat("es-ES", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  const FORMATO_CRYPTO = new Intl.NumberFormat("es-ES", {
+    minimumFractionDigits: 6,
+    maximumFractionDigits: 6,
+  });
 
   // Cache de elementos DOM frecuentes
   const DOM = {};
   const cacheDOM = () => {
-    DOM.formOperacion = document.getElementById("formOperacion");
-    DOM.modalDetalle = document.getElementById("modalDetalle");
-    DOM.activasContainer = document.getElementById("activasContainer");
-    DOM.historialContainer = document.getElementById("historialContainer");
-    DOM.resumenContainer = document.getElementById("resumenContainer");
-    DOM.toastContainer = document.getElementById("toastContainer");
-    DOM.fechaInicio = document.getElementById("fechaInicio");
-    DOM.cex = document.getElementById("cex");
-    DOM.monto = document.getElementById("monto");
-    DOM.moneda = document.getElementById("moneda");
-    DOM.apr = document.getElementById("apr");
-    DOM.tipoOperacion = document.getElementById("tipoOperacion");
-    DOM.precioObjetivo = document.getElementById("precioObjetivo");
-    DOM.countActivas = document.getElementById("countActivas");
-    DOM.countHistorial = document.getElementById("countHistorial");
-    DOM.btnGuardar = document.getElementById("btnGuardar");
-    DOM.btnCancelar = document.getElementById("btnCancelar");
-    DOM.ethPriceWidget = document.getElementById("ethPriceWidget");
-    DOM.ethPriceValue = document.getElementById("ethPriceValue");
-    DOM.ethPriceStatus = document.getElementById("ethPriceStatus");
+    [
+      "formOperacion",
+      "modalDetalle",
+      "activasContainer",
+      "historialContainer",
+      "resumenContainer",
+      "toastContainer",
+      "fechaInicio",
+      "cex",
+      "monto",
+      "moneda",
+      "apr",
+      "tipoOperacion",
+      "precioObjetivo",
+      "countActivas",
+      "countHistorial",
+      "btnGuardar",
+      "btnCancelar",
+      "ethPriceWidget",
+      "ethPriceValue",
+      "ethPriceStatus",
+    ].forEach((id) => {
+      DOM[id] = document.getElementById(id);
+    });
   };
 
   // Lista de CEX disponibles
@@ -48,11 +66,16 @@
 
   // RAF utility para animaciones
   const raf = (fn) => requestAnimationFrame(fn);
+  const $ = (id) => DOM[id] || document.getElementById(id);
+  const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
+  const refreshIcons = () => {
+    if (window.lucide?.createIcons) lucide.createIcons();
+  };
 
   document.addEventListener("DOMContentLoaded", function () {
     console.log("DOM cargado, inicializando...");
     cacheDOM();
-    lucide.createIcons();
+    refreshIcons();
 
     setFechaHoraActual();
     cargarCEXSelect();
@@ -91,24 +114,22 @@
 
     // Cerrar cualquier dropdown abierto al hacer click fuera
     document.addEventListener("click", function (e) {
-      document
-        .querySelectorAll(".custom-options.show, #capitalOptions.show")
-        .forEach(function (opts) {
-          const container =
-            opts.closest(".custom-select-container") ||
-            opts.closest(".capital-selector-container");
-          if (container && !container.contains(e.target)) {
-            opts.classList.remove("show");
-            const trigger = container.querySelector(".custom-select-trigger");
-            if (trigger) trigger.classList.remove("active");
-            container.classList.remove("open");
-            container.closest(".card")?.classList.remove("dropdown-open");
-          }
-        });
+      $$(".custom-options.show, #capitalOptions.show").forEach(function (opts) {
+        const container =
+          opts.closest(".custom-select-container") ||
+          opts.closest(".capital-selector-container");
+        if (container && !container.contains(e.target)) {
+          opts.classList.remove("show");
+          const trigger = container.querySelector(".custom-select-trigger");
+          if (trigger) trigger.classList.remove("active");
+          container.classList.remove("open");
+          container.closest(".card")?.classList.remove("dropdown-open");
+        }
+      });
     });
 
     // Keyboard accessibility for theme toggle
-    const themeBtn = document.getElementById("themeToggleBtn");
+    const themeBtn = $("themeToggleBtn");
     if (themeBtn) {
       themeBtn.addEventListener("keydown", function (e) {
         if (e.key === "Enter" || e.key === " ") {
@@ -121,34 +142,22 @@
     // Global Escape key to close modals
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape") {
-        if (
-          document
-            .getElementById("modalFormulario")
-            ?.classList.contains("active")
-        ) {
+        if ($("modalFormulario")?.classList.contains("active")) {
           cerrarFormularioDirecto();
         }
-        if (
-          document.getElementById("modalDetalle")?.classList.contains("active")
-        ) {
+        if ($("modalDetalle")?.classList.contains("active")) {
           cerrarModal();
         }
-        if (
-          document.getElementById("modalCapital")?.classList.contains("show")
-        ) {
+        if ($("modalCapital")?.classList.contains("show")) {
           cerrarModalCapitalDirecto();
         }
-        if (document.getElementById("confirmModal")) {
-          document.getElementById("confirmModal")?.remove();
-        }
-        if (document.getElementById("editB6Modal")) {
-          document.getElementById("editB6Modal")?.remove();
-        }
+        $("confirmModal")?.remove();
+        $("editB6Modal")?.remove();
       }
     });
 
     // Focus management for modals
-    const modalForm = document.getElementById("modalFormulario");
+    const modalForm = $("modalFormulario");
     if (modalForm) {
       const observer = new MutationObserver(function () {
         if (modalForm.classList.contains("active")) {
@@ -180,7 +189,7 @@
 
     // Delegación de eventos para tablas - Optimizada
     const setupDelegation = (id) => {
-      const container = document.getElementById(id);
+      const container = $(id);
       if (!container) return;
 
       // Usar evento delegated
@@ -408,7 +417,7 @@
 
   // Función para limitar decimales según moneda: ETH/BTC = 6, USDT = 4
   function limitarDecimalesMonto(e) {
-    const moneda = document.getElementById("moneda").value;
+    const moneda = DOM.moneda.value;
     const maxDec = moneda === "ETH" || moneda === "BTC" ? 6 : 4;
     const partes = e.target.value.split(".");
     if (partes.length > 1 && partes[1].length > maxDec) {
@@ -424,7 +433,7 @@
     // Limpiar errores previos
     clearFormErrors();
 
-    const fechaInput = document.getElementById("fechaInicio").value;
+    const fechaInput = DOM.fechaInicio.value;
     if (!fechaInput) {
       showFieldError("groupFecha", "errorFecha");
       return { valid: false, field: "fechaInicio" };
@@ -434,19 +443,19 @@
     const hour = timePart.split(":")[0];
     const fechaLocalExacta = datePart + "T" + hour + ":00";
 
-    const cex = document.getElementById("cex").value;
+    const cex = DOM.cex.value;
     if (!cex) {
       showFieldError("groupCex", "errorCex");
       return { valid: false, field: "cex" };
     }
 
-    const moneda = document.getElementById("moneda").value;
+    const moneda = DOM.moneda.value;
     if (!moneda) {
       showFieldError("groupMoneda", "errorMoneda");
       return { valid: false, field: "moneda" };
     }
 
-    const montoStr = document.getElementById("monto").value;
+    const montoStr = DOM.monto.value;
     const monto = parseFloat(montoStr);
     if (!monto || isNaN(monto) || monto <= 0) {
       showFieldError("groupMonto", "errorMonto");
@@ -458,25 +467,21 @@
       showFieldError("groupMonto", "errorMonto");
       return { valid: false, field: "monto" };
     }
-    if (!moneda) {
-      showFieldError("groupMoneda", "errorMoneda");
-      return { valid: false, field: "moneda" };
-    }
 
-    const apr = parseFloat(document.getElementById("apr").value);
+    const apr = parseFloat(DOM.apr.value);
     if (!apr || isNaN(apr) || apr <= 0) {
       showFieldError("groupApr", "errorApr");
       return { valid: false, field: "apr" };
     }
 
-    const tipoOperacion = document.getElementById("tipoOperacion").value;
+    const tipoOperacion = DOM.tipoOperacion.value;
     if (!tipoOperacion) {
       showFieldError("groupTipo", "errorTipo");
       return { valid: false, field: "tipoOperacion" };
     }
 
     const precioObjetivo = parseFloat(
-      document.getElementById("precioObjetivo").value,
+      DOM.precioObjetivo.value,
     );
     if (!precioObjetivo || isNaN(precioObjetivo) || precioObjetivo <= 0) {
       showFieldError("groupPrecio", "errorPrecio");
@@ -577,11 +582,11 @@
             if (btnText) btnText.textContent = "Guardar Operación";
             submitBtn.classList.remove("btn-warning");
 
-            const btnCancel = document.getElementById("btnCancelar");
+            const btnCancel = DOM.btnCancelar;
             if (btnCancel) btnCancel.style.display = "none";
 
             window.editandoFila = null;
-            document.getElementById("formOperacion").reset();
+            DOM.formOperacion.reset();
             setFechaHoraActual();
             clearFormErrors();
           }
@@ -640,6 +645,7 @@
   // ============================================
   function cargarPrecioETH(silent) {
     if (!DOM.ethPriceValue || !DOM.ethPriceStatus) return;
+    if (ethPriceRequestInFlight) return;
 
     if (!silent) {
       DOM.ethPriceValue.textContent = "Cargando...";
@@ -647,6 +653,7 @@
       DOM.ethPriceWidget?.classList.remove("eth-price-error");
     }
 
+    ethPriceRequestInFlight = true;
     fetchPrecioETHCliente()
       .then(renderizarPrecioETH)
       .catch(function (error) {
@@ -659,6 +666,9 @@
           "No se pudo obtener ETH/USDT desde Binance",
         );
         DOM.ethPriceWidget?.classList.add("eth-price-error");
+      })
+      .finally(function () {
+        ethPriceRequestInFlight = false;
       });
   }
 
@@ -723,6 +733,11 @@
 
   function cargarOperaciones(silent) {
     console.log("Cargando operaciones...");
+    if (!isGASAvailable()) {
+      mostrarErrorCarga("No se pudo conectar con Google Apps Script");
+      return;
+    }
+
     if (!silent) {
       raf(() => {
         DOM.activasContainer.innerHTML =
@@ -761,6 +776,14 @@
 
   function cargarResumen(silent) {
     console.log("Cargando resumen...");
+    if (!isGASAvailable()) {
+      if (DOM.resumenContainer) {
+        DOM.resumenContainer.innerHTML =
+          '<p class="error-text">No se pudo conectar con Google Apps Script</p>';
+      }
+      return;
+    }
+
     if (!silent) {
       raf(() => {
         DOM.resumenContainer.innerHTML =
@@ -777,8 +800,8 @@
   }
 
   function mostrarErrorCarga(mensaje) {
-    const activasContainer = document.getElementById("activasContainer");
-    const historialContainer = document.getElementById("historialContainer");
+    const activasContainer = $("activasContainer");
+    const historialContainer = $("historialContainer");
 
     const errorHtml = `
     <div class="error-state">
@@ -793,15 +816,14 @@
 
     if (activasContainer) activasContainer.innerHTML = errorHtml;
     if (historialContainer) historialContainer.innerHTML = errorHtml;
-    lucide.createIcons();
+    refreshIcons();
   }
 
   // ============================================
   // RENDERIZAR TABLAS - Optimizado
   // ============================================
   function renderizarActivas(activas) {
-    const container =
-      DOM.activasContainer || document.getElementById("activasContainer");
+    const container = $("activasContainer");
     if (!container) return;
 
     actualizarContador("countActivas", activas.length);
@@ -836,7 +858,6 @@
     activas.forEach((op) => {
       const fechaInicio = formatearFecha(op.fechaInicio);
       const montoFormateado = formatearMonto(op.monto, op.moneda);
-      const badgeClass = getBadgeClass(op.tipoOperacion);
       const moneda = op.moneda ? String(op.moneda) : "USDT";
       const monedaKey = getMonedaKey(moneda);
       const interesStr = formatearInteres(op.interes, moneda);
@@ -844,13 +865,7 @@
       const totalNum = parseFloat(op.total) || 0;
       totalSumaCalculada += totalNum;
       const totalStr =
-        totalNum > 0
-          ? "$" +
-            totalNum.toLocaleString("es-ES", {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })
-          : "-";
+        totalNum > 0 ? "$" + FORMATO_USD.format(totalNum) : "-";
 
       const duracionBadge = op.tiempoCex
         ? `<div class="badge-duration live">${op.tiempoCex}</div>`
@@ -906,18 +921,17 @@
       <tfoot>
         <tr class="table-footer-summary">
           <td colspan="8" class="summary-label">Total en curso:</td>
-          <td colspan="2" class="summary-value">$${totalSumaCalculada.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+          <td colspan="2" class="summary-value">$${FORMATO_USD.format(totalSumaCalculada)}</td>
         </tr>
       </tfoot>
     </table>
   </div>`;
     container.innerHTML = html;
-    lucide.createIcons();
+    refreshIcons();
   }
 
   function renderizarHistorial(completadas, prevCount) {
-    const container =
-      DOM.historialContainer || document.getElementById("historialContainer");
+    const container = $("historialContainer");
     if (!container) return;
 
     actualizarContador("countHistorial", completadas.length);
@@ -954,7 +968,6 @@
       const animClass = idx < nuevasCount ? " anim-row-new" : "";
       const fechaInicio = formatearFecha(op.fechaInicio);
       const montoFormateado = formatearMonto(op.monto, op.moneda);
-      const badgeClass = getBadgeClass(op.tipoOperacion);
       const moneda = op.moneda ? String(op.moneda) : "USDT";
       const monedaFinal = op.monedaFinal ? String(op.monedaFinal) : "-";
       const monedaKey = getMonedaKey(moneda);
@@ -1003,7 +1016,7 @@
 
     html += "</tbody></table></div>";
     container.innerHTML = html;
-    lucide.createIcons();
+    refreshIcons();
   }
 
   function completarOperacion(fila, monedaFinal, selectElement) {
@@ -1114,16 +1127,16 @@
 
     if (op.fechaInicio) {
       const rawLocal = op.fechaInicio.replace(" ", "T").substring(0, 16);
-      document.getElementById("fechaInicio").value = rawLocal;
+      DOM.fechaInicio.value = rawLocal;
     }
 
     seleccionarCEX(op.cex || "");
-    document.getElementById("monto").value = op.monto || "";
-    document.getElementById("moneda").value = op.moneda || "";
+    DOM.monto.value = op.monto || "";
+    DOM.moneda.value = op.moneda || "";
 
-    document.getElementById("apr").value = op.apr || "";
-    document.getElementById("tipoOperacion").value = op.tipoOperacion || "";
-    document.getElementById("precioObjetivo").value = op.precioObjetivo || "";
+    DOM.apr.value = op.apr || "";
+    DOM.tipoOperacion.value = op.tipoOperacion || "";
+    DOM.precioObjetivo.value = op.precioObjetivo || "";
 
     window.editandoFila = fila;
 
@@ -1138,7 +1151,7 @@
       "Modo edición activado. Modifica los campos y pulsa 'Actualizar'.",
     );
 
-    const btnCancel = document.getElementById("btnCancelar");
+    const btnCancel = DOM.btnCancelar;
     if (btnCancel) btnCancel.style.display = "inline-block";
 
     mostrarFormulario();
@@ -1146,7 +1159,7 @@
 
   function cancelarEdicion() {
     window.editandoFila = null;
-    document.getElementById("formOperacion").reset();
+    DOM.formOperacion.reset();
     seleccionarCEX("OKX"); // Reset custom select
     setFechaHoraActual();
 
@@ -1164,7 +1177,7 @@
       submitBtn.disabled = false;
     }
 
-    const btnCancel = document.getElementById("btnCancelar");
+    const btnCancel = DOM.btnCancelar;
     if (btnCancel) btnCancel.style.display = "none";
 
     cerrarFormularioDirecto();
@@ -1195,16 +1208,10 @@
       <div class="detail-label">Fecha de Inicio</div>
       <div class="detail-value">${fechaInicio}</div>
     </div>
-    ${
-      esHistorial
-        ? `
     <div class="detail-item">
       <div class="detail-label">Fecha de Fin</div>
       <div class="detail-value">${fechaFin}</div>
     </div>
-    `
-        : ""
-    }
     <div class="detail-item">
       <div class="detail-label">CEX</div>
       <div class="detail-value highlight">
@@ -1289,7 +1296,7 @@
 
     if (detalleContent) detalleContent.innerHTML = html;
     if (modalDetalle) modalDetalle.classList.add("active");
-    lucide.createIcons();
+    refreshIcons();
   }
 
   function cerrarModal() {
@@ -1398,7 +1405,7 @@
             </div>
             <div class="resumen-item calc-result-item">
               <span class="resumen-label">Capital Final</span>
-              <span class="resumen-value highlight calc-result" id="calcCapitalFinal">$${capFinal.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span class="resumen-value highlight calc-result" id="calcCapitalFinal">$${FORMATO_USD.format(capFinal)}</span>
             </div>
           </div>`;
       }
@@ -1456,12 +1463,7 @@
             ? ci * fC * fR
             : (ci * fC - (ret * (fC - 1)) / (f30 - 1)) * fR;
         cap = Math.max(0, cap);
-        calcResult.textContent =
-          "$" +
-          cap.toLocaleString("es-ES", {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          });
+        calcResult.textContent = "$" + FORMATO_USD.format(cap);
       };
 
       [calcApr, calcDias, calcRetiro].forEach((el) =>
@@ -1474,13 +1476,18 @@
   // GESTIÓN DE CAPITALES (PESTAÑAS)
   // ============================================
   function cargarCapitanes() {
+    if (!isGASAvailable()) {
+      showAlert("error", "No se pudo conectar con Google Apps Script");
+      return;
+    }
+
     google.script.run
       .withSuccessHandler(function (list) {
-        const trigger = document.getElementById("capitalSelectedText");
-        const options = document.getElementById("capitalOptions");
-        const select = document.getElementById("capitalSelect");
+        const trigger = $("capitalSelectedText");
+        const options = $("capitalOptions");
+        const select = $("capitalSelect");
 
-        if (!trigger || !options) return;
+        if (!trigger || !options || !select) return;
 
         trigger.textContent = currentSheet;
         options.innerHTML = "";
@@ -1504,8 +1511,8 @@
         });
 
         // Eventos para el selector custom
-        const triggerContainer = document.getElementById("capitalTrigger");
-        const container = document.getElementById("capitalSelectorContainer");
+        const triggerContainer = $("capitalTrigger");
+        if (!triggerContainer) return;
 
         triggerContainer.onclick = (e) => {
           e.stopPropagation();
@@ -1530,16 +1537,14 @@
     currentSheet = name;
 
     // Visual update
-    document.getElementById("capitalSelectedText").textContent = name;
-    document
-      .querySelectorAll("#capitalOptions .custom-option")
-      .forEach((opt) => {
-        opt.classList.toggle("selected", opt.textContent === name);
-      });
+    $("capitalSelectedText").textContent = name;
+    $$("#capitalOptions .custom-option").forEach((opt) => {
+      opt.classList.toggle("selected", opt.textContent === name);
+    });
 
     // Cerrar dropdown
-    const options = document.getElementById("capitalOptions");
-    const trigger = document.getElementById("capitalTrigger");
+    const options = $("capitalOptions");
+    const trigger = $("capitalTrigger");
     if (options) options.classList.remove("show");
     if (trigger) trigger.classList.remove("active");
 
@@ -1548,9 +1553,9 @@
   }
 
   function mostrarModalCapital() {
-    document.getElementById("modalCapital").classList.add("show");
-    document.getElementById("formCapital").reset();
-    document.getElementById("groupNombreCapital").classList.remove("has-error");
+    $("modalCapital").classList.add("show");
+    $("formCapital").reset();
+    $("groupNombreCapital").classList.remove("has-error");
   }
 
   function cerrarModalCapital(e) {
@@ -1558,11 +1563,11 @@
   }
 
   function cerrarModalCapitalDirecto() {
-    document.getElementById("modalCapital").classList.remove("show");
+    $("modalCapital").classList.remove("show");
   }
 
   function setCapitalFormLoading(loading) {
-    const btn = document.getElementById("btnGuardarCapital");
+    const btn = $("btnGuardarCapital");
     if (!btn) return;
     const iconNormal = btn.querySelector(".btn-icon-normal");
     const spinnerContainer = btn.querySelector(".btn-spinner-container");
@@ -1582,17 +1587,19 @@
     }
   }
 
-  document.getElementById("formCapital").onsubmit = function (e) {
+  $("formCapital").onsubmit = function (e) {
     e.preventDefault();
-    const btn = document.getElementById("btnGuardarCapital");
-
     const datos = {
-      nombre: document.getElementById("nombreCapital").value.trim(),
-      soles: parseFloat(document.getElementById("capitalSoles").value) || 0,
-      dolares: parseFloat(document.getElementById("capitalDolares").value) || 0,
+      nombre: $("nombreCapital").value.trim(),
+      soles: parseFloat($("capitalSoles").value) || 0,
+      dolares: parseFloat($("capitalDolares").value) || 0,
     };
 
     if (!datos.nombre) return;
+    if (!isGASAvailable()) {
+      showAlert("error", "No se pudo conectar con Google Apps Script");
+      return;
+    }
 
     setCapitalFormLoading(true);
 
@@ -1695,7 +1702,7 @@
       <div class="edit-item-row" style="display:flex; border-bottom:1px solid var(--border); align-items:center; background: ${i % 2 === 0 ? "var(--tr-hover-bg)" : "transparent"}">
         <div style="flex:0 0 110px; padding:8px 14px; border-right:1px solid var(--border);">
           <input type="number" step="0.01" value="${a.valor}" class="edit-inp-val"
-                 style="width:100%; background:transparent; border:none; color:var(--primary); font-family:var(--font-mono); font-size:1.1rem; outline:none; font-weight:600;" oninput="actualizarTotalDesdeDOM()"/>
+                 style="width:100%; background:transparent; border:none; color:var(--primary); font-family:var(--font-main); font-size:1.1rem; outline:none; font-weight:600;" oninput="actualizarTotalDesdeDOM()"/>
         </div>
         <div style="flex:1; padding:8px 14px; display:flex; align-items:center; gap:8px;">
           <input type="text" value="${sanitize(a.desc)}" class="edit-inp-desc"
@@ -1714,12 +1721,7 @@
       container
         .querySelectorAll(".edit-inp-val")
         .forEach((inp) => (sum += parseFloat(inp.value) || 0));
-      totalEl.textContent =
-        "S/ " +
-        sum.toLocaleString("es-ES", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        });
+      totalEl.textContent = "S/ " + FORMATO_USD.format(sum);
       totalEl._sumValue = sum;
     };
 
@@ -1731,7 +1733,7 @@
       newRow.innerHTML = `
         <div style="flex:0 0 110px; padding:14px; border-right:1px solid var(--border);">
           <input type="number" step="0.01" value="0" class="edit-inp-val"
-                 style="width:100%; background:transparent; border:none; color:var(--primary); font-family:var(--font-mono); font-size:1.1rem; outline:none; font-weight:600;" oninput="actualizarTotalDesdeDOM()"/>
+                 style="width:100%; background:transparent; border:none; color:var(--primary); font-family:var(--font-main); font-size:1.1rem; outline:none; font-weight:600;" oninput="actualizarTotalDesdeDOM()"/>
         </div>
         <div style="flex:1; padding:14px; display:flex; align-items:center; gap:8px;">
           <input type="text" value="" class="edit-inp-desc"
@@ -1910,10 +1912,7 @@
     if (num === null || num === undefined || num === "" || isNaN(Number(num)))
       return "-";
     try {
-      return parseFloat(num).toLocaleString("es-ES", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 4,
-      });
+      return FORMATO_NUMERO.format(parseFloat(num));
     } catch (e) {
       return "-";
     }
@@ -1923,13 +1922,7 @@
     if (num === null || num === undefined || num === "" || isNaN(Number(num))) {
       return "$-";
     }
-    return (
-      "$" +
-      parseFloat(num).toLocaleString("es-ES", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })
-    );
+    return "$" + FORMATO_USD.format(parseFloat(num));
   }
 
   function formatearMonto(monto, moneda) {
@@ -1942,13 +1935,7 @@
         isNaN(Number(monto))
       )
         return "$-";
-      return (
-        "$" +
-        parseFloat(monto).toLocaleString("es-ES", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })
-      );
+      return "$" + FORMATO_USD.format(parseFloat(monto));
     }
     if (mon === "ETH" || mon === "BTC") {
       if (
@@ -1958,10 +1945,7 @@
         isNaN(Number(monto))
       )
         return "-";
-      return parseFloat(monto).toLocaleString("es-ES", {
-        minimumFractionDigits: 6,
-        maximumFractionDigits: 6,
-      });
+      return FORMATO_CRYPTO.format(parseFloat(monto));
     }
     return formatearNumero(monto) + " " + mon;
   }
@@ -1976,23 +1960,10 @@
     )
       return "-";
     if (mon === "USDT") {
-      return (
-        "$" +
-        parseFloat(valor).toLocaleString("es-ES", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })
-      );
+      return "$" + FORMATO_USD.format(parseFloat(valor));
     }
     if (mon === "ETH" || mon === "BTC") {
-      return (
-        parseFloat(valor).toLocaleString("es-ES", {
-          minimumFractionDigits: 6,
-          maximumFractionDigits: 6,
-        }) +
-        " " +
-        mon
-      );
+      return FORMATO_CRYPTO.format(parseFloat(valor)) + " " + mon;
     }
     return formatearNumero(valor);
   }
@@ -2002,11 +1973,7 @@
       valor !== undefined &&
       valor !== "" &&
       !isNaN(Number(valor))
-      ? "$" +
-          parseFloat(valor).toLocaleString("es-ES", {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })
+      ? "$" + FORMATO_USD.format(parseFloat(valor))
       : "-";
   }
 
@@ -2020,13 +1987,7 @@
     )
       return "-";
     // Interest always in USDT with 2 decimals
-    return (
-      "$" +
-      parseFloat(valor).toLocaleString("es-ES", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })
-    );
+    return "$" + FORMATO_USD.format(parseFloat(valor));
   }
 
   function getMonedaKey(moneda) {
@@ -2072,7 +2033,7 @@
     toast.className = `toast toast-${type}`;
     toast.innerHTML = `<span class="toast-icon"><i data-lucide="${iconName}"></i></span><span class="toast-content">${message}</span>`;
     container.appendChild(toast);
-    lucide.createIcons();
+    refreshIcons();
 
     requestAnimationFrame(() => toast.classList.add("show"));
 
