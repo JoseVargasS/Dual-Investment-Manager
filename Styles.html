@@ -299,6 +299,81 @@
     animation: pulse-dot 2s ease-in-out infinite;
   }
 
+  .eth-price-widget {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 42px;
+    padding: 6px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .eth-price-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--color-eth) 18%, transparent);
+    color: var(--color-eth);
+    flex: 0 0 auto;
+  }
+
+  .eth-price-icon svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .eth-price-copy {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    line-height: 1.1;
+  }
+
+  .eth-price-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-tertiary);
+    letter-spacing: 0.4px;
+  }
+
+  .eth-price-value {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+  }
+
+  .eth-price-status {
+    align-self: stretch;
+    display: inline-flex;
+    align-items: center;
+    padding-left: 10px;
+    border-left: 1px solid var(--border-color);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--color-eth);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+
+  .eth-price-widget.eth-price-error .eth-price-icon {
+    background: var(--rh-red-light);
+    color: var(--danger);
+  }
+
+  .eth-price-widget.eth-price-error .eth-price-status {
+    color: var(--danger);
+  }
+
   @keyframes pulse-dot {
     0%,
     100% {
@@ -2293,6 +2368,12 @@
 
     .header {
       padding: var(--space-xl) var(--space-md);
+    }
+
+    .eth-price-widget {
+      width: auto;
+      max-width: 320px;
+      justify-content: center;
     }
 
     .header h1 {

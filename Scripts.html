@@ -6,6 +6,8 @@
   let prevHistorialCount = 0;
   let currentSheet = "CAPITAL 1";
   const DEFAULT_SHEET_NAME = "CAPITAL 1";
+  const ETH_PRICE_REFRESH_MS = 2500;
+  let ethPriceTimer = null;
 
   // Cache de elementos DOM frecuentes
   const DOM = {};
@@ -27,6 +29,9 @@
     DOM.countHistorial = document.getElementById("countHistorial");
     DOM.btnGuardar = document.getElementById("btnGuardar");
     DOM.btnCancelar = document.getElementById("btnCancelar");
+    DOM.ethPriceWidget = document.getElementById("ethPriceWidget");
+    DOM.ethPriceValue = document.getElementById("ethPriceValue");
+    DOM.ethPriceStatus = document.getElementById("ethPriceStatus");
   };
 
   // Lista de CEX disponibles
@@ -57,16 +62,26 @@
     DOM.formOperacion.addEventListener("submit", guardarOperacion);
 
     // Función helper para crear listeners de limpieza de errores
-    const createClearErrorListener = (groupId) => () => clearFieldError(groupId);
+    const createClearErrorListener = (groupId) => () =>
+      clearFieldError(groupId);
 
     // Limpiar errores al interactuar con los campos
-    DOM.fechaInicio.addEventListener("input", createClearErrorListener("groupFecha"));
+    DOM.fechaInicio.addEventListener(
+      "input",
+      createClearErrorListener("groupFecha"),
+    );
     DOM.cex.addEventListener("change", createClearErrorListener("groupCex"));
     DOM.monto.addEventListener("input", createClearErrorListener("groupMonto"));
     DOM.moneda.addEventListener("change", manejarCambioMoneda);
     DOM.apr.addEventListener("input", createClearErrorListener("groupApr"));
-    DOM.tipoOperacion.addEventListener("change", createClearErrorListener("groupTipo"));
-    DOM.precioObjetivo.addEventListener("input", createClearErrorListener("groupPrecio"));
+    DOM.tipoOperacion.addEventListener(
+      "change",
+      createClearErrorListener("groupTipo"),
+    );
+    DOM.precioObjetivo.addEventListener(
+      "input",
+      createClearErrorListener("groupPrecio"),
+    );
 
     if (DOM.modalDetalle) {
       DOM.modalDetalle.addEventListener("click", function (e) {
@@ -76,16 +91,20 @@
 
     // Cerrar cualquier dropdown abierto al hacer click fuera
     document.addEventListener("click", function (e) {
-      document.querySelectorAll(".custom-options.show, #capitalOptions.show").forEach(function (opts) {
-        const container = opts.closest(".custom-select-container") || opts.closest(".capital-selector-container");
-        if (container && !container.contains(e.target)) {
-          opts.classList.remove("show");
-          const trigger = container.querySelector(".custom-select-trigger");
-          if (trigger) trigger.classList.remove("active");
-          container.classList.remove("open");
-          container.closest(".card")?.classList.remove("dropdown-open");
-        }
-      });
+      document
+        .querySelectorAll(".custom-options.show, #capitalOptions.show")
+        .forEach(function (opts) {
+          const container =
+            opts.closest(".custom-select-container") ||
+            opts.closest(".capital-selector-container");
+          if (container && !container.contains(e.target)) {
+            opts.classList.remove("show");
+            const trigger = container.querySelector(".custom-select-trigger");
+            if (trigger) trigger.classList.remove("active");
+            container.classList.remove("open");
+            container.closest(".card")?.classList.remove("dropdown-open");
+          }
+        });
     });
 
     // Keyboard accessibility for theme toggle
@@ -102,13 +121,21 @@
     // Global Escape key to close modals
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape") {
-        if (document.getElementById("modalFormulario")?.classList.contains("active")) {
+        if (
+          document
+            .getElementById("modalFormulario")
+            ?.classList.contains("active")
+        ) {
           cerrarFormularioDirecto();
         }
-        if (document.getElementById("modalDetalle")?.classList.contains("active")) {
+        if (
+          document.getElementById("modalDetalle")?.classList.contains("active")
+        ) {
           cerrarModal();
         }
-        if (document.getElementById("modalCapital")?.classList.contains("show")) {
+        if (
+          document.getElementById("modalCapital")?.classList.contains("show")
+        ) {
           cerrarModalCapitalDirecto();
         }
         if (document.getElementById("confirmModal")) {
@@ -126,10 +153,16 @@
       const observer = new MutationObserver(function () {
         if (modalForm.classList.contains("active")) {
           const firstInput = modalForm.querySelector("input, select, button");
-          if (firstInput) setTimeout(function () { firstInput.focus(); }, 100);
+          if (firstInput)
+            setTimeout(function () {
+              firstInput.focus();
+            }, 100);
         }
       });
-      observer.observe(modalForm, { attributes: true, attributeFilter: ["class"] });
+      observer.observe(modalForm, {
+        attributes: true,
+        attributeFilter: ["class"],
+      });
     }
 
     // Pequeño retardo para que google.script.run esté disponible
@@ -137,7 +170,13 @@
       cargarCapitanes(); // Cargar lista de pestañas/capitales
       cargarOperaciones();
       cargarResumen();
+      cargarPrecioETH();
     }, 100);
+
+    ethPriceTimer = setInterval(
+      () => cargarPrecioETH(true),
+      ETH_PRICE_REFRESH_MS,
+    );
 
     // Delegación de eventos para tablas - Optimizada
     const setupDelegation = (id) => {
@@ -179,7 +218,6 @@
 
     setupDelegation("activasContainer");
     setupDelegation("historialContainer");
-
   });
 
   function manejarCambioMoneda() {
@@ -272,50 +310,50 @@
         optionsContainer.appendChild(customOpt);
       });
 
-       // Función para cerrar todos los dropdowns
-       const closeAllDropdowns = () => {
-         document.querySelectorAll(".custom-options.show").forEach((opt) => {
-           opt.classList.remove("show");
-           opt.closest(".custom-select-container")?.classList.remove("open");
-           opt.closest(".card")?.classList.remove("dropdown-open");
-         });
-         document
-           .querySelectorAll(".custom-select-trigger.active")
-           .forEach((tr) => {
-             tr.classList.remove("active");
-           });
-       };
+      // Función para cerrar todos los dropdowns
+      const closeAllDropdowns = () => {
+        document.querySelectorAll(".custom-options.show").forEach((opt) => {
+          opt.classList.remove("show");
+          opt.closest(".custom-select-container")?.classList.remove("open");
+          opt.closest(".card")?.classList.remove("dropdown-open");
+        });
+        document
+          .querySelectorAll(".custom-select-trigger.active")
+          .forEach((tr) => {
+            tr.classList.remove("active");
+          });
+      };
 
-       trigger.addEventListener("click", (e) => {
+      trigger.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleCEXDropdown();
+      });
+
+      trigger.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          e.stopPropagation();
           toggleCEXDropdown();
-        });
-
-        trigger.addEventListener("keydown", (e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            toggleCEXDropdown();
-          }
-        });
-
-        function toggleCEXDropdown() {
-          const isOpen = optionsContainer.classList.contains("show");
-
-          closeAllDropdowns();
-
-          if (!isOpen) {
-            optionsContainer.classList.add("show");
-            trigger.classList.add("active");
-            container.classList.add("open");
-            container.closest(".card")?.classList.add("dropdown-open");
-          } else {
-            optionsContainer.classList.remove("show");
-            trigger.classList.remove("active");
-            container.classList.remove("open");
-            container.closest(".card")?.classList.remove("dropdown-open");
-          }
         }
+      });
+
+      function toggleCEXDropdown() {
+        const isOpen = optionsContainer.classList.contains("show");
+
+        closeAllDropdowns();
+
+        if (!isOpen) {
+          optionsContainer.classList.add("show");
+          trigger.classList.add("active");
+          container.classList.add("open");
+          container.closest(".card")?.classList.add("dropdown-open");
+        } else {
+          optionsContainer.classList.remove("show");
+          trigger.classList.remove("active");
+          container.classList.remove("open");
+          container.closest(".card")?.classList.remove("dropdown-open");
+        }
+      }
 
       // Valor inicial
       seleccionarCEX("OKX");
@@ -364,13 +402,14 @@
 
   // Función para actualizar el atributo step del campo monto según la moneda
   function actualizarStepMonto(moneda) {
-    DOM.monto.step = (moneda === "ETH" || moneda === "BTC") ? "0.000001" : "0.0001";
+    DOM.monto.step =
+      moneda === "ETH" || moneda === "BTC" ? "0.000001" : "0.0001";
   }
 
   // Función para limitar decimales según moneda: ETH/BTC = 6, USDT = 4
   function limitarDecimalesMonto(e) {
     const moneda = document.getElementById("moneda").value;
-    const maxDec = (moneda === "ETH" || moneda === "BTC") ? 6 : 4;
+    const maxDec = moneda === "ETH" || moneda === "BTC" ? 6 : 4;
     const partes = e.target.value.split(".");
     if (partes.length > 1 && partes[1].length > maxDec) {
       e.target.value = partes[0] + "." + partes[1].slice(0, maxDec);
@@ -380,204 +419,212 @@
   // ============================================
   // GUARDAR OPERACIÓN
   // ============================================
-   // Función para validar todos los campos del formulario
-   function validarFormulario() {
-     // Limpiar errores previos
-     clearFormErrors();
+  // Función para validar todos los campos del formulario
+  function validarFormulario() {
+    // Limpiar errores previos
+    clearFormErrors();
 
-     const fechaInput = document.getElementById("fechaInicio").value;
-     if (!fechaInput) {
-       showFieldError("groupFecha", "errorFecha");
-       return { valid: false, field: "fechaInicio" };
-     }
-
-     const [datePart, timePart] = fechaInput.split("T");
-     const hour = timePart.split(":")[0];
-     const fechaLocalExacta = datePart + "T" + hour + ":00";
-
-     const cex = document.getElementById("cex").value;
-     if (!cex) {
-       showFieldError("groupCex", "errorCex");
-       return { valid: false, field: "cex" };
-     }
-
-      const moneda = document.getElementById("moneda").value;
-      if (!moneda) {
-        showFieldError("groupMoneda", "errorMoneda");
-        return { valid: false, field: "moneda" };
-      }
-
-      const montoStr = document.getElementById("monto").value;
-      const monto = parseFloat(montoStr);
-      if (!monto || isNaN(monto) || monto <= 0) {
-        showFieldError("groupMonto", "errorMonto");
-        return { valid: false, field: "monto" };
-      }
-      const partes = montoStr.split(".");
-      const maxDec = (moneda === "ETH" || moneda === "BTC") ? 6 : 4;
-      if (partes.length > 1 && partes[1].length > maxDec) {
-        showFieldError("groupMonto", "errorMonto");
-        return { valid: false, field: "monto" };
-      }
-     if (!moneda) {
-       showFieldError("groupMoneda", "errorMoneda");
-       return { valid: false, field: "moneda" };
-     }
-
-     const apr = parseFloat(document.getElementById("apr").value);
-     if (!apr || isNaN(apr) || apr <= 0) {
-       showFieldError("groupApr", "errorApr");
-       return { valid: false, field: "apr" };
-     }
-
-     const tipoOperacion = document.getElementById("tipoOperacion").value;
-     if (!tipoOperacion) {
-       showFieldError("groupTipo", "errorTipo");
-       return { valid: false, field: "tipoOperacion" };
-     }
-
-     const precioObjetivo = parseFloat(
-       document.getElementById("precioObjetivo").value,
-     );
-     if (!precioObjetivo || isNaN(precioObjetivo) || precioObjetivo <= 0) {
-       showFieldError("groupPrecio", "errorPrecio");
-       return { valid: false, field: "precioObjetivo" };
-     }
-
-     return {
-       valid: true,
-       datos: {
-         fechaInicio: fechaLocalExacta,
-         cex,
-         monto,
-         moneda,
-         apr,
-         tipoOperacion,
-         precioObjetivo,
-       }
-     };
-   }
-
-   function setFormLoading(loading) {
-      const btn = DOM.btnGuardar;
-      if (!btn) return;
-      const iconNormal = btn.querySelector(".btn-icon-normal");
-      const spinnerContainer = btn.querySelector(".btn-spinner-container");
-      const btnText = btn.querySelector(".btn-text");
-      if (loading) {
-        btn.disabled = true;
-        if (iconNormal) iconNormal.style.display = "none";
-        if (spinnerContainer) spinnerContainer.style.display = "inline-flex";
-        if (btnText) btnText.textContent = window.editandoFila ? "Actualizando" : "Guardando";
-        btn.classList.add("btn-loading");
-      } else {
-        btn.disabled = false;
-        if (iconNormal) iconNormal.style.display = "";
-        if (spinnerContainer) spinnerContainer.style.display = "none";
-        if (btnText) btnText.textContent = window.editandoFila ? "Actualizar Operación" : "Guardar Operación";
-        btn.classList.remove("btn-loading");
-      }
+    const fechaInput = document.getElementById("fechaInicio").value;
+    if (!fechaInput) {
+      showFieldError("groupFecha", "errorFecha");
+      return { valid: false, field: "fechaInicio" };
     }
 
-   function guardarOperacion(e) {
-      e.preventDefault();
-      console.log("Guardando operación...");
+    const [datePart, timePart] = fechaInput.split("T");
+    const hour = timePart.split(":")[0];
+    const fechaLocalExacta = datePart + "T" + hour + ":00";
 
-      setFormLoading(true);
+    const cex = document.getElementById("cex").value;
+    if (!cex) {
+      showFieldError("groupCex", "errorCex");
+      return { valid: false, field: "cex" };
+    }
 
-      try {
-        const validacion = validarFormulario();
-        if (!validacion.valid) {
-          setFormLoading(false);
-          return;
-        }
+    const moneda = document.getElementById("moneda").value;
+    if (!moneda) {
+      showFieldError("groupMoneda", "errorMoneda");
+      return { valid: false, field: "moneda" };
+    }
 
-        const { datos } = validacion;
+    const montoStr = document.getElementById("monto").value;
+    const monto = parseFloat(montoStr);
+    if (!monto || isNaN(monto) || monto <= 0) {
+      showFieldError("groupMonto", "errorMonto");
+      return { valid: false, field: "monto" };
+    }
+    const partes = montoStr.split(".");
+    const maxDec = moneda === "ETH" || moneda === "BTC" ? 6 : 4;
+    if (partes.length > 1 && partes[1].length > maxDec) {
+      showFieldError("groupMonto", "errorMonto");
+      return { valid: false, field: "monto" };
+    }
+    if (!moneda) {
+      showFieldError("groupMoneda", "errorMoneda");
+      return { valid: false, field: "moneda" };
+    }
 
-        console.log("Datos a enviar:", datos);
+    const apr = parseFloat(document.getElementById("apr").value);
+    if (!apr || isNaN(apr) || apr <= 0) {
+      showFieldError("groupApr", "errorApr");
+      return { valid: false, field: "apr" };
+    }
 
-        if (!isGASAvailable()) {
-          showAlert("error", "No se pudo conectar con Google Apps Script");
-          setFormLoading(false);
-          return;
-        }
+    const tipoOperacion = document.getElementById("tipoOperacion").value;
+    if (!tipoOperacion) {
+      showFieldError("groupTipo", "errorTipo");
+      return { valid: false, field: "tipoOperacion" };
+    }
 
-        // Solo crear fila pendiente si no estamos editando
-        let pendingRowCreated = false;
-        if (!window.editandoFila) {
-          crearFilaPendiente(datos);
-          pendingRowCreated = true;
-        }
+    const precioObjetivo = parseFloat(
+      document.getElementById("precioObjetivo").value,
+    );
+    if (!precioObjetivo || isNaN(precioObjetivo) || precioObjetivo <= 0) {
+      showFieldError("groupPrecio", "errorPrecio");
+      return { valid: false, field: "precioObjetivo" };
+    }
 
-        const successHandler = function (response) {
-          setFormLoading(false);
-          console.log("Respuesta servidor:", response);
-          if (response && response.success) {
-            showAlert(
-              "success",
-              window.editandoFila
-                ? "Operación actualizada correctamente"
-                : "Operación guardada correctamente",
-            );
+    return {
+      valid: true,
+      datos: {
+        fechaInicio: fechaLocalExacta,
+        cex,
+        monto,
+        moneda,
+        apr,
+        tipoOperacion,
+        precioObjetivo,
+      },
+    };
+  }
 
-            if (window.editandoFila) {
-              const submitBtn = DOM.btnGuardar;
-              const iconNormal = submitBtn.querySelector(".btn-icon-normal");
-              const spinnerContainer = submitBtn.querySelector(".btn-spinner-container");
-              const btnText = submitBtn.querySelector(".btn-text");
-              if (iconNormal) iconNormal.style.display = "";
-              if (spinnerContainer) spinnerContainer.style.display = "none";
-              if (btnText) btnText.textContent = "Guardar Operación";
-              submitBtn.classList.remove("btn-warning");
+  function setFormLoading(loading) {
+    const btn = DOM.btnGuardar;
+    if (!btn) return;
+    const iconNormal = btn.querySelector(".btn-icon-normal");
+    const spinnerContainer = btn.querySelector(".btn-spinner-container");
+    const btnText = btn.querySelector(".btn-text");
+    if (loading) {
+      btn.disabled = true;
+      if (iconNormal) iconNormal.style.display = "none";
+      if (spinnerContainer) spinnerContainer.style.display = "inline-flex";
+      if (btnText)
+        btnText.textContent = window.editandoFila
+          ? "Actualizando"
+          : "Guardando";
+      btn.classList.add("btn-loading");
+    } else {
+      btn.disabled = false;
+      if (iconNormal) iconNormal.style.display = "";
+      if (spinnerContainer) spinnerContainer.style.display = "none";
+      if (btnText)
+        btnText.textContent = window.editandoFila
+          ? "Actualizar Operación"
+          : "Guardar Operación";
+      btn.classList.remove("btn-loading");
+    }
+  }
 
-              const btnCancel = document.getElementById("btnCancelar");
-              if (btnCancel) btnCancel.style.display = "none";
+  function guardarOperacion(e) {
+    e.preventDefault();
+    console.log("Guardando operación...");
 
-              window.editandoFila = null;
-              document.getElementById("formOperacion").reset();
-              setFechaHoraActual();
-              clearFormErrors();
-            }
+    setFormLoading(true);
 
-            // Cerrar el modal flotante después de guardar exitosamente
-            cerrarFormularioDirecto();
-
-             cargarOperaciones(true);
-             cargarResumen(true);
-           } else {
-             showAlert("error", extraerMensaje(response, "Error en el servidor"));
-             cargarOperaciones(true); // Recargar por si acaso para quitar la fila pendiente
-          }
-        };
-
-        const failureHandler = function (error) {
-          setFormLoading(false);
-          console.error("Error de servidor:", error);
-          showAlert(
-            "error",
-            "Error: " + extraerMensaje(error, "Error desconocido"),
-          );
-          cargarOperaciones(true); // Recargar
-        };
-
-        if (window.editandoFila) {
-          datos.fila = window.editandoFila;
-          google.script.run
-            .withSuccessHandler(successHandler)
-            .withFailureHandler(failureHandler)
-            .actualizarOperacionFila(datos, currentSheet);
-        } else {
-          google.script.run
-            .withSuccessHandler(successHandler)
-            .withFailureHandler(failureHandler)
-            .agregarOperacion(datos, currentSheet);
-        }
-      } catch (error) {
-        console.error("Error en guardarOperacion:", error);
+    try {
+      const validacion = validarFormulario();
+      if (!validacion.valid) {
         setFormLoading(false);
-        showAlert("error", "Error: " + (error.message || "Error desconocido"));
+        return;
       }
+
+      const { datos } = validacion;
+
+      console.log("Datos a enviar:", datos);
+
+      if (!isGASAvailable()) {
+        showAlert("error", "No se pudo conectar con Google Apps Script");
+        setFormLoading(false);
+        return;
+      }
+
+      // Solo crear fila pendiente si no estamos editando
+      let pendingRowCreated = false;
+      if (!window.editandoFila) {
+        crearFilaPendiente(datos);
+        pendingRowCreated = true;
+      }
+
+      const successHandler = function (response) {
+        setFormLoading(false);
+        console.log("Respuesta servidor:", response);
+        if (response && response.success) {
+          showAlert(
+            "success",
+            window.editandoFila
+              ? "Operación actualizada correctamente"
+              : "Operación guardada correctamente",
+          );
+
+          if (window.editandoFila) {
+            const submitBtn = DOM.btnGuardar;
+            const iconNormal = submitBtn.querySelector(".btn-icon-normal");
+            const spinnerContainer = submitBtn.querySelector(
+              ".btn-spinner-container",
+            );
+            const btnText = submitBtn.querySelector(".btn-text");
+            if (iconNormal) iconNormal.style.display = "";
+            if (spinnerContainer) spinnerContainer.style.display = "none";
+            if (btnText) btnText.textContent = "Guardar Operación";
+            submitBtn.classList.remove("btn-warning");
+
+            const btnCancel = document.getElementById("btnCancelar");
+            if (btnCancel) btnCancel.style.display = "none";
+
+            window.editandoFila = null;
+            document.getElementById("formOperacion").reset();
+            setFechaHoraActual();
+            clearFormErrors();
+          }
+
+          // Cerrar el modal flotante después de guardar exitosamente
+          cerrarFormularioDirecto();
+
+          cargarOperaciones(true);
+          cargarResumen(true);
+        } else {
+          showAlert("error", extraerMensaje(response, "Error en el servidor"));
+          cargarOperaciones(true); // Recargar por si acaso para quitar la fila pendiente
+        }
+      };
+
+      const failureHandler = function (error) {
+        setFormLoading(false);
+        console.error("Error de servidor:", error);
+        showAlert(
+          "error",
+          "Error: " + extraerMensaje(error, "Error desconocido"),
+        );
+        cargarOperaciones(true); // Recargar
+      };
+
+      if (window.editandoFila) {
+        datos.fila = window.editandoFila;
+        google.script.run
+          .withSuccessHandler(successHandler)
+          .withFailureHandler(failureHandler)
+          .actualizarOperacionFila(datos, currentSheet);
+      } else {
+        google.script.run
+          .withSuccessHandler(successHandler)
+          .withFailureHandler(failureHandler)
+          .agregarOperacion(datos, currentSheet);
+      }
+    } catch (error) {
+      console.error("Error en guardarOperacion:", error);
+      setFormLoading(false);
+      showAlert("error", "Error: " + (error.message || "Error desconocido"));
     }
+  }
 
   // ============================================
   // CARGAR OPERACIONES - Optimizado
@@ -585,14 +632,103 @@
   function refrescarTodo(silent) {
     cargarOperaciones(silent);
     cargarResumen(silent);
+    cargarPrecioETH(true);
+  }
+
+  // ============================================
+  // PRECIO ETH - Binance
+  // ============================================
+  function cargarPrecioETH(silent) {
+    if (!DOM.ethPriceValue || !DOM.ethPriceStatus) return;
+
+    if (!silent) {
+      DOM.ethPriceValue.textContent = "Cargando...";
+      DOM.ethPriceStatus.textContent = "Binance";
+      DOM.ethPriceWidget?.classList.remove("eth-price-error");
+    }
+
+    fetchPrecioETHCliente()
+      .then(renderizarPrecioETH)
+      .catch(function (error) {
+        if (DOM.ethPriceValue.textContent === "Cargando...") {
+          DOM.ethPriceValue.textContent = "Sin dato";
+        }
+        DOM.ethPriceStatus.textContent = "Error";
+        DOM.ethPriceWidget.title = extraerMensaje(
+          error,
+          "No se pudo obtener ETH/USDT desde Binance",
+        );
+        DOM.ethPriceWidget?.classList.add("eth-price-error");
+      });
+  }
+
+  async function fetchPrecioETHCliente() {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    try {
+      const response = await fetch(
+        "https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT",
+        {
+          method: "GET",
+          cache: "no-store",
+          signal: controller.signal,
+          headers: { Accept: "application/json" },
+        },
+      );
+
+      const text = await response.text();
+      if (!response.ok) {
+        throw new Error(
+          "Binance respondio con codigo " +
+            response.status +
+            ": " +
+            text.slice(0, 120),
+        );
+      }
+
+      const data = JSON.parse(text);
+      return {
+        success: true,
+        price: parseFloat(data.price),
+        symbol: data.symbol || "ETHUSDT",
+        source: "Binance",
+      };
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  function renderizarPrecioETH(response) {
+    if (!DOM.ethPriceValue || !DOM.ethPriceStatus) return;
+
+    if (
+      response?.success &&
+      response.price !== null &&
+      !isNaN(Number(response.price))
+    ) {
+      DOM.ethPriceValue.textContent = formatearPrecioUSD(response.price);
+      DOM.ethPriceStatus.textContent = response.source || "Binance";
+      DOM.ethPriceWidget.title = "Precio actual ETH/USDT en Binance";
+      DOM.ethPriceWidget?.classList.remove("eth-price-error");
+      return;
+    }
+
+    DOM.ethPriceValue.textContent = "Sin dato";
+    DOM.ethPriceStatus.textContent = "Error";
+    DOM.ethPriceWidget.title =
+      response?.message || "No se pudo obtener el precio ETH/USDT";
+    DOM.ethPriceWidget?.classList.add("eth-price-error");
   }
 
   function cargarOperaciones(silent) {
     console.log("Cargando operaciones...");
     if (!silent) {
       raf(() => {
-        DOM.activasContainer.innerHTML = '<div class="loading-inline"><div class="spinner"></div><p>Obteniendo operaciones...</p></div>';
-        DOM.historialContainer.innerHTML = '<div class="loading-inline"><div class="spinner"></div><p>Obteniendo historial...</p></div>';
+        DOM.activasContainer.innerHTML =
+          '<div class="loading-inline"><div class="spinner"></div><p>Obteniendo operaciones...</p></div>';
+        DOM.historialContainer.innerHTML =
+          '<div class="loading-inline"><div class="spinner"></div><p>Obteniendo historial...</p></div>';
       });
     }
 
@@ -606,7 +742,9 @@
 
   function renderizarOperaciones(response) {
     if (response && response.success) {
-      const oldCompletadasLen = operacionesData.completadas ? operacionesData.completadas.length : 0;
+      const oldCompletadasLen = operacionesData.completadas
+        ? operacionesData.completadas.length
+        : 0;
       const newCompletadas = response.completadas || [];
       operacionesData = response;
       raf(() => {
@@ -614,7 +752,10 @@
         renderizarHistorial(newCompletadas, oldCompletadasLen);
       });
     } else {
-      showAlert("error", response ? response.message : "Error al cargar operaciones");
+      showAlert(
+        "error",
+        response ? response.message : "Error al cargar operaciones",
+      );
     }
   }
 
@@ -622,7 +763,8 @@
     console.log("Cargando resumen...");
     if (!silent) {
       raf(() => {
-        DOM.resumenContainer.innerHTML = '<div class="loading-inline"><div class="spinner"></div><p>Actualizando resumen...</p></div>';
+        DOM.resumenContainer.innerHTML =
+          '<div class="loading-inline"><div class="spinner"></div><p>Actualizando resumen...</p></div>';
       });
     }
 
@@ -809,7 +951,7 @@
   `;
 
     ordenadas.forEach((op, idx) => {
-      const animClass = idx < nuevasCount ? ' anim-row-new' : '';
+      const animClass = idx < nuevasCount ? " anim-row-new" : "";
       const fechaInicio = formatearFecha(op.fechaInicio);
       const montoFormateado = formatearMonto(op.monto, op.moneda);
       const badgeClass = getBadgeClass(op.tipoOperacion);
@@ -962,7 +1104,9 @@
       (operacionesData.completadas || []).find((o) => o.fila === fila);
     if (!op) return;
 
-    const editRow = document.querySelector(`.operacion-row[data-fila='${fila}']:not([data-historial="true"])`);
+    const editRow = document.querySelector(
+      `.operacion-row[data-fila='${fila}']:not([data-historial="true"])`,
+    );
     if (editRow) {
       editRow.classList.add("anim-row-edit");
       setTimeout(() => editRow.classList.remove("anim-row-edit"), 1500);
@@ -1009,7 +1153,9 @@
     const submitBtn = DOM.btnGuardar;
     if (submitBtn) {
       const iconNormal = submitBtn.querySelector(".btn-icon-normal");
-      const spinnerContainer = submitBtn.querySelector(".btn-spinner-container");
+      const spinnerContainer = submitBtn.querySelector(
+        ".btn-spinner-container",
+      );
       const btnText = submitBtn.querySelector(".btn-text");
       if (iconNormal) iconNormal.style.display = "";
       if (spinnerContainer) spinnerContainer.style.display = "none";
@@ -1164,13 +1310,16 @@
       rows.forEach((row, idx) => {
         const label = String(row[0] || "");
         if (!label.trim()) return;
-        const valor = row[1] !== null && row[1] !== "" ? String(row[1]).trim() : "-";
-        
-        let extraClasses = "";
-        if (options.highlightFn && options.highlightFn(label)) extraClasses = "highlight";
-        if (options.editableRows && options.editableRows.includes(idx)) extraClasses = "editable";
+        const valor =
+          row[1] !== null && row[1] !== "" ? String(row[1]).trim() : "-";
 
-         card += `
+        let extraClasses = "";
+        if (options.highlightFn && options.highlightFn(label))
+          extraClasses = "highlight";
+        if (options.editableRows && options.editableRows.includes(idx))
+          extraClasses = "editable";
+
+        card += `
            <div class="resumen-item">
              <span class="resumen-label">${sanitize(label)}</span>
              <span class="resumen-value ${extraClasses}" 
@@ -1190,15 +1339,18 @@
     }
 
     let html = "";
-    
+
     // Si es la pestaña principal, mostrar el diseño original
     if (currentSheet === DEFAULT_SHEET_NAME) {
       if (data.cuadro1 && data.cuadro1.length > 0) {
-        html += buildCard(" Resumen BBVA", data.cuadro1, { editableRows: [1, 3] });
+        html += buildCard(" Resumen BBVA", data.cuadro1, {
+          editableRows: [1, 3],
+        });
       }
       if (data.cuadro2 && data.cuadro2.length > 0) {
         html += buildCard(" Objetivos", data.cuadro2, {
-          highlightFn: (l) => l.toLowerCase().includes("min") || l.toLowerCase().includes("mín")
+          highlightFn: (l) =>
+            l.toLowerCase().includes("min") || l.toLowerCase().includes("mín"),
         });
       }
 
@@ -1206,7 +1358,13 @@
         const rows = data.cuadro3;
         function parseNum(str) {
           if (!str || str === "-") return 0;
-          return parseFloat(String(str).replace(/[$,%\s]/g, "").replace(",", ".")) || 0;
+          return (
+            parseFloat(
+              String(str)
+                .replace(/[$,%\s]/g, "")
+                .replace(",", "."),
+            ) || 0
+          );
         }
         const ci = parseNum(rows[0] ? rows[0][2] : "0");
         const netProfit = parseNum(rows[1] ? rows[1][2] : "0");
@@ -1216,7 +1374,9 @@
         const retiroVal = parseNum(rows[5] ? rows[5][2] : "0");
         const capFinal = parseNum(rows[6] ? rows[6][2] : "0");
         const netProfitRaw = String(rows[1][2] || "").trim();
-        const netProfitClass = esValorNegativo(netProfitRaw) ? "negative net-profit" : "success net-profit";
+        const netProfitClass = esValorNegativo(netProfitRaw)
+          ? "negative net-profit"
+          : "success net-profit";
 
         html += `
           <div class="resumen-card resumen-calc-card">
@@ -1248,26 +1408,30 @@
       html += `
         <div class="resumen-card">
           <h3> Resumen Financiero</h3>
-          ${rows.map((row, i) => {
-            const rowVal = String(row[1] || "-");
-            let valueClass = "";
-            if (i === 2) {
-              valueClass = esValorNegativo(rowVal) ? "negative net-profit" : "success net-profit";
-            } else if (i === 3 || i === 5 || i === 6) {
-              valueClass = "highlight";
-            }
-            return `
+          ${rows
+            .map((row, i) => {
+              const rowVal = String(row[1] || "-");
+              let valueClass = "";
+              if (i === 2) {
+                valueClass = esValorNegativo(rowVal)
+                  ? "negative net-profit"
+                  : "success net-profit";
+              } else if (i === 3 || i === 5 || i === 6) {
+                valueClass = "highlight";
+              }
+              return `
             <div class="resumen-item">
               <span class="resumen-label">${sanitize(String(row[0] || ""))}</span>
               <span class="resumen-value ${valueClass}">
                 ${(i === 0 || i === 6) && !rowVal.includes("S/") ? "S/ " : ""}${sanitize(rowVal)}${i === 3 ? "/día" : ""}
               </span>
             </div>`;
-          }).join("")}
+            })
+            .join("")}
         </div>`;
     }
 
-    DOM.resumenContainer.innerHTML = html || '<p>No hay datos disponibles</p>';
+    DOM.resumenContainer.innerHTML = html || "<p>No hay datos disponibles</p>";
     raf(() => DOM.resumenContainer.classList.add("show"));
 
     // Inicializar calculadora si existe
@@ -1287,12 +1451,22 @@
         const fC = Math.pow(1 + r, m * 30);
         const f30 = Math.pow(1 + r, 30);
         const fR = Math.pow(1 + r, d % 30);
-        let cap = (ret === 0) ? ci * fC * fR : (ci * fC - (ret * (fC - 1)) / (f30 - 1)) * fR;
+        let cap =
+          ret === 0
+            ? ci * fC * fR
+            : (ci * fC - (ret * (fC - 1)) / (f30 - 1)) * fR;
         cap = Math.max(0, cap);
-        calcResult.textContent = "$" + cap.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        calcResult.textContent =
+          "$" +
+          cap.toLocaleString("es-ES", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          });
       };
 
-      [calcApr, calcDias, calcRetiro].forEach(el => el.addEventListener("input", recalcular));
+      [calcApr, calcDias, calcRetiro].forEach((el) =>
+        el.addEventListener("input", recalcular),
+      );
     }
   }
 
@@ -1301,37 +1475,38 @@
   // ============================================
   function cargarCapitanes() {
     google.script.run
-      .withSuccessHandler(function(list) {
+      .withSuccessHandler(function (list) {
         const trigger = document.getElementById("capitalSelectedText");
         const options = document.getElementById("capitalOptions");
         const select = document.getElementById("capitalSelect");
-        
+
         if (!trigger || !options) return;
-        
+
         trigger.textContent = currentSheet;
         options.innerHTML = "";
         select.innerHTML = "";
-        
-        list.forEach(name => {
+
+        list.forEach((name) => {
           // Opción para custom select
           const opt = document.createElement("div");
-          opt.className = "custom-option" + (name === currentSheet ? " selected" : "");
+          opt.className =
+            "custom-option" + (name === currentSheet ? " selected" : "");
           opt.textContent = name;
           opt.onclick = () => cambiarCapital(name);
           options.appendChild(opt);
-          
+
           // Opción para select nativo (fallback)
           const nativeOpt = document.createElement("option");
           nativeOpt.value = name;
           nativeOpt.textContent = name;
-          nativeOpt.selected = (name === currentSheet);
+          nativeOpt.selected = name === currentSheet;
           select.appendChild(nativeOpt);
         });
 
         // Eventos para el selector custom
         const triggerContainer = document.getElementById("capitalTrigger");
         const container = document.getElementById("capitalSelectorContainer");
-        
+
         triggerContainer.onclick = (e) => {
           e.stopPropagation();
           options.classList.toggle("show");
@@ -1353,12 +1528,14 @@
     if (name === currentSheet) return;
     console.log("Cambiando a capital:", name);
     currentSheet = name;
-    
+
     // Visual update
     document.getElementById("capitalSelectedText").textContent = name;
-    document.querySelectorAll("#capitalOptions .custom-option").forEach(opt => {
-      opt.classList.toggle("selected", opt.textContent === name);
-    });
+    document
+      .querySelectorAll("#capitalOptions .custom-option")
+      .forEach((opt) => {
+        opt.classList.toggle("selected", opt.textContent === name);
+      });
 
     // Cerrar dropdown
     const options = document.getElementById("capitalOptions");
@@ -1405,14 +1582,14 @@
     }
   }
 
-  document.getElementById("formCapital").onsubmit = function(e) {
+  document.getElementById("formCapital").onsubmit = function (e) {
     e.preventDefault();
     const btn = document.getElementById("btnGuardarCapital");
-    
+
     const datos = {
       nombre: document.getElementById("nombreCapital").value.trim(),
       soles: parseFloat(document.getElementById("capitalSoles").value) || 0,
-      dolares: parseFloat(document.getElementById("capitalDolares").value) || 0
+      dolares: parseFloat(document.getElementById("capitalDolares").value) || 0,
     };
 
     if (!datos.nombre) return;
@@ -1420,7 +1597,7 @@
     setCapitalFormLoading(true);
 
     google.script.run
-      .withSuccessHandler(function(resp) {
+      .withSuccessHandler(function (resp) {
         setCapitalFormLoading(false);
         if (resp.success) {
           showAlert("success", resp.message);
@@ -1432,7 +1609,7 @@
           showAlert("error", resp.message);
         }
       })
-      .withFailureHandler(function(err) {
+      .withFailureHandler(function (err) {
         setCapitalFormLoading(false);
         showAlert("error", "Error: " + err);
       })
@@ -1742,6 +1919,19 @@
     }
   }
 
+  function formatearPrecioUSD(num) {
+    if (num === null || num === undefined || num === "" || isNaN(Number(num))) {
+      return "$-";
+    }
+    return (
+      "$" +
+      parseFloat(num).toLocaleString("es-ES", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+    );
+  }
+
   function formatearMonto(monto, moneda) {
     const mon = moneda || "USDT";
     if (mon === "USDT") {
@@ -1808,17 +1998,15 @@
   }
 
   function formatearTotal(valor) {
-    return (
-      valor !== null &&
+    return valor !== null &&
       valor !== undefined &&
       valor !== "" &&
       !isNaN(Number(valor))
-    )
       ? "$" +
-        parseFloat(valor).toLocaleString("es-ES", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })
+          parseFloat(valor).toLocaleString("es-ES", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })
       : "-";
   }
 
@@ -1842,7 +2030,9 @@
   }
 
   function getMonedaKey(moneda) {
-    return String(moneda).toLowerCase().replace(/[^a-z]/g, "");
+    return String(moneda)
+      .toLowerCase()
+      .replace(/[^a-z]/g, "");
   }
 
   function getBadgeClass(tipoOperacion) {
@@ -1871,7 +2061,8 @@
   }
 
   function showAlert(type, message) {
-    const container = DOM.toastContainer || document.getElementById("toastContainer");
+    const container =
+      DOM.toastContainer || document.getElementById("toastContainer");
     if (!container) return;
 
     const icons = { success: "circle-check", error: "circle-x", info: "info" };
@@ -2116,7 +2307,8 @@
   // TEMA: MODO OSCURO / CLARO
   // ============================================
   function toggleTheme() {
-    const newTheme = document.body.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    const newTheme =
+      document.body.getAttribute("data-theme") === "dark" ? "light" : "dark";
     document.body.setAttribute("data-theme", newTheme);
     localStorage.setItem("theme", newTheme);
   }
