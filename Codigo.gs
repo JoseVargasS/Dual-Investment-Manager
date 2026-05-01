@@ -42,6 +42,30 @@ const COL = {
 
 const NUM_COLS = 19; // Desde E hasta W (23 - 5 + 1)
 const COLS_INPUT = 8; // Columnas E-L (entrada manual)
+const OP_FONT_FAMILY = "Roboto";
+const OP_FONT_SIZE = 10;
+const OP_HEADER_ROW = 15;
+const OP_HEADER_COL_WIDTHS = [
+  105, // E FECHA INICIO
+  105, // F FECHA FIN
+  50, // G CEX
+  70, // H MONTO
+  62, // I MONEDA
+  76, // J % APR EN CEX
+  92, // K TIPO OPERACION
+  62, // L PRECIO OBJ.
+  38, // M DIAS
+  26, // N dia
+  38, // O HRS
+  26, // P hrs
+  74, // Q Tiempo (dias)
+  66, // R INTERES
+  102, // S FINAL CALCULADO
+  68, // T FINAL VAL
+  58, // U FINAL MON
+  118, // V APR ACUMULADO
+  118, // W APR EFECTIVO DIARIO
+];
 
 // ============================================
 // HELPERS DE FECHA
@@ -128,14 +152,75 @@ function getCapitalsList() {
     const ss = getSpreadsheet();
     if (!ss) return [DEFAULT_SHEET_NAME];
 
-    return ss
+    const sheets = ss
       .getSheets()
-      .filter((s) => !s.isSheetHidden())
-      .map((s) => s.getName());
+      .filter((s) => !s.isSheetHidden());
+    sheets.forEach((sheet) => aplicarFormatoEstructuraCapital(sheet));
+    return sheets.map((s) => s.getName());
   } catch (e) {
     Logger.log("Error en getCapitalsList: " + e);
     return [DEFAULT_SHEET_NAME];
   }
+}
+
+function aplicarFormatoEstructuraCapital(sheet) {
+  if (!sheet) return;
+
+  sheet.setColumnWidths(1, 4, 9);
+  for (let row = 9; row <= 14; row++) {
+    sheet.setRowHeight(row, 9);
+  }
+  sheet.setRowHeight(OP_HEADER_ROW, 40);
+
+  OP_HEADER_COL_WIDTHS.forEach((width, idx) => {
+    sheet.setColumnWidth(COL.FECHA_INICIO + idx, width);
+  });
+
+  sheet
+    .getRange(OP_HEADER_ROW, COL.FECHA_INICIO, 1, NUM_COLS)
+    .setFontFamily(OP_FONT_FAMILY)
+    .setFontSize(OP_FONT_SIZE)
+    .setFontWeight("bold")
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setWrap(true);
+
+  const lastRow = Math.max(sheet.getLastRow(), FIRST_DATA_ROW);
+  if (lastRow >= FIRST_DATA_ROW) {
+    aplicarFormatoRangoOperaciones(sheet, FIRST_DATA_ROW, lastRow - FIRST_DATA_ROW + 1);
+  }
+}
+
+function aplicarFormatoRangoOperaciones(sheet, startRow, numRows) {
+  if (!sheet || numRows <= 0) return;
+  sheet
+    .getRange(startRow, COL.FECHA_INICIO, numRows, NUM_COLS)
+    .setFontFamily(OP_FONT_FAMILY)
+    .setFontSize(OP_FONT_SIZE)
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle");
+}
+
+function aplicarFormatoFilaOperacion(sheet, row, moneda, monedaFinal) {
+  aplicarFormatoRangoOperaciones(sheet, row, 1);
+
+  sheet.getRange(row, COL.FECHA_INICIO, 1, 2).setNumberFormat("dd/mm/yy hh:mm");
+  sheet.getRange(row, COL.APR).setNumberFormat("0.00%");
+  sheet.getRange(row, COL.TIEMPO_D_VAL).setNumberFormat("0");
+  sheet.getRange(row, COL.TIEMPO_H_VAL).setNumberFormat("0");
+  sheet.getRange(row, COL.TIEMPO_DIAS).setNumberFormat("0.00");
+  sheet.getRange(row, COL.INTERES, 1, 2).setNumberFormat("$#,##0.00");
+  sheet.getRange(row, COL.APR_ACUM, 1, 2).setNumberFormat("0.00%");
+
+  const fmtMonto = moneda === "USDT" ? "$#,##0.00" : "0.000000";
+  sheet.getRange(row, COL.MONTO).setNumberFormat(fmtMonto);
+
+  const finalFormat = monedaFinal
+    ? monedaFinal === "USDT"
+      ? "$#,##0.00"
+      : "0.000000"
+    : "$#,##0.00";
+  sheet.getRange(row, COL.FINAL_OBT_VAL).setNumberFormat(finalFormat);
 }
 
 function encontrarPrimeraFilaVacia(sheet) {
@@ -234,18 +319,8 @@ function agregarOperacion(datos, sheetName) {
 
     sheet.getRange(r, 13, 1, rowValues.length).setValues([rowValues]);
 
-    // Aplicar formatos
-    sheet.getRange(r, COL.FECHA_INICIO).setNumberFormat("dd/mm/yy hh:mm");
-    sheet.getRange(r, COL.FECHA_FIN).setNumberFormat("dd/mm/yy hh:mm");
-    sheet.getRange(r, COL.APR).setNumberFormat("0.00%");
-    sheet.getRange(r, COL.TIEMPO_D_VAL).setNumberFormat("0");
-    sheet.getRange(r, COL.TIEMPO_H_VAL).setNumberFormat("0");
-    sheet.getRange(r, COL.TIEMPO_DIAS).setNumberFormat("0.00");
-    sheet.getRange(r, COL.INTERES, 1, 3).setNumberFormat("$#,##0.00");
-    sheet.getRange(r, COL.APR_ACUM, 1, 2).setNumberFormat("0.00%");
-
-    const fmtMonto = datos.moneda === "USDT" ? "$#,##0.00" : "0.000000";
-    sheet.getRange(r, COL.MONTO).setNumberFormat(fmtMonto);
+    aplicarFormatoEstructuraCapital(sheet);
+    aplicarFormatoFilaOperacion(sheet, r, datos.moneda);
     sheet.getRange(r, COL.MONEDA).setValue(datos.moneda);
 
     return {
@@ -407,17 +482,8 @@ function actualizarOperacionFila(datos, sheetName) {
 
     sheet.getRange(r, 13, 1, formulas.length).setFormulas([formulas]);
 
-    // Aplicar formatos
-    sheet.getRange(r, COL.FECHA_INICIO).setNumberFormat("dd/mm/yy hh:mm");
-    sheet.getRange(r, COL.FECHA_FIN).setNumberFormat("dd/mm/yy hh:mm");
-    sheet.getRange(r, COL.APR).setNumberFormat("0.00%");
-    sheet.getRange(r, COL.TIEMPO_D_VAL, 1, 2).setNumberFormat("0.00");
-    sheet.getRange(r, COL.TIEMPO_DIAS).setNumberFormat("0.00");
-    sheet.getRange(r, COL.INTERES, 1, 2).setNumberFormat("$#,##0.00");
-    sheet.getRange(r, COL.APR_ACUM, 1, 2).setNumberFormat("0.00%");
-
-    const fmtMonto = datos.moneda === "USDT" ? "$#,##0.00" : "0.000000";
-    sheet.getRange(r, COL.MONTO).setNumberFormat(fmtMonto);
+    aplicarFormatoEstructuraCapital(sheet);
+    aplicarFormatoFilaOperacion(sheet, r, datos.moneda);
 
     SpreadsheetApp.flush();
     return { success: true, message: "Operación actualizada correctamente" };
@@ -442,9 +508,8 @@ function completarOperacion(fila, monedaFinal, sheetName) {
     sheet.getRange(r, COL.FINAL_OBT_VAL).setFormula(valFormula);
     sheet.getRange(r, COL.FINAL_OBT_MON).setValue(monedaFinal);
 
-    const fmtFinal = monedaFinal === "USDT" ? "$#,##0.00" : "0.000000";
-    sheet.getRange(r, COL.FINAL_OBT_VAL).setNumberFormat(fmtFinal);
-    sheet.getRange(r, COL.TIEMPO_DIAS).setNumberFormat("0.00");
+    aplicarFormatoEstructuraCapital(sheet);
+    aplicarFormatoFilaOperacion(sheet, r, sheet.getRange(r, COL.MONEDA).getValue(), monedaFinal);
 
     SpreadsheetApp.flush();
     return { success: true, message: "Operación completada correctamente" };
@@ -631,6 +696,8 @@ function crearNuevoCapital(datos) {
     }
 
     const sheet = ss.insertSheet(nombre);
+    ss.setActiveSheet(sheet);
+    ss.moveActiveSheet(ss.getNumSheets());
 
     // 1. Estilo General de la Hoja (Fondo oscuro total)
     sheet
@@ -645,7 +712,7 @@ function crearNuevoCapital(datos) {
       ["Capital Inicial ($)", datos.dolares],
       [
         "NET PROFIT",
-        "=ROUND(IFERROR(INDEX(T:T,MATCH(9.99999999999999E+307,T:T))-F3,0), 2)",
+        "=ROUND(IFERROR(INDEX(S:S,MATCH(9.99999999999999E+307,S:S))-F3,0), 2)",
       ],
       ["Promedio Diario", "=IFERROR(F4 / CEILING(MAX(E:E)-MIN(E:E), 1), 0)"],
       ["%APR Promedio", "=AVERAGE(W16:W1000)"],
@@ -731,6 +798,8 @@ function crearNuevoCapital(datos) {
         "#222222",
         SpreadsheetApp.BorderStyle.SOLID,
       );
+
+    aplicarFormatoEstructuraCapital(sheet);
 
     // Actualizar tipo de cambio inicial
     GetDollarHouse(nombre);
